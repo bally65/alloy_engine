@@ -229,7 +229,102 @@ After retraining on 8000 sparse-Dirichlet samples with v3.0 formula (seed=42, ep
 
 ---
 
-## 9. Reproducibility
+## 9. v3.1 Update — MC Dropout Uncertainty Quantification
+
+**Date:** 2026-05-02  
+**Change scope:** `PropertyMLP` architecture + `SurrogateBundle` inference + `GPUGeneticAlgorithm` fitness. Formula and features unchanged.
+
+### Method
+
+**MC Dropout** (Gal & Ghahramani, ICML 2016): Dropout layers remain active at inference time. N forward passes through the same network produce a distribution of predictions; std across passes estimates epistemic uncertainty.
+
+- Dropout rate: p = 0.10 (three layers, after each hidden activation)
+- Default MC samples: n = 30 (training), n = 20 (GA fitness)
+- API: `SurrogateBundle.predict_properties_with_uncertainty(compositions, n_samples=30)`  
+  Returns 8-key dict: `{Tc_mean, Tc_std, Hc_mean, Hc_std, Br_mean, Br_std, strength_mean, strength_std}`
+
+### Sanity Check Results
+
+- Two back-to-back MC runs on Permalloy: mean diff = 0.13 K, std ≈ 9 K → MC Dropout confirmed active
+- Deterministic `predict_properties` (eval mode): two runs identical to float32 precision
+- All 4 models: 3 Dropout layers each, p = 0.10, correct train/eval switching
+
+### Synthetic R² Impact (p=0.10 vs no dropout)
+
+| Model | No dropout | p=0.10 | Delta |
+|-------|-----------|--------|-------|
+| Tc (K) | 0.9925 | 0.9925 | 0 |
+| Hc (A/m) | 0.8707 | 0.8697 | −0.001 |
+| Br (T) | 0.9187 | 0.9192 | +0.001 |
+| σy (MPa) | 0.9448 | 0.9451 | +0.000 |
+
+Dropout p=0.10 has negligible effect on predictive performance.
+
+### Famous Alloy Uncertainty (MC n=30)
+
+| Alloy | n_elem | Tc_mean (°C) | Tc_std (°C) | NEMAD (°C) | Error |
+|-------|--------|-------------|------------|------------|-------|
+| Permalloy Ni₈₀Fe₂₀ | 2 | +424 | **8.5** | 434 | −10 |
+| Hiperco50 Fe₅₀Co₅₀ | 2 | +1033 | **39.8** | 1031 | +2 |
+| Sendust Fe₈₅Si₉Al₆ | 3 | +578 | **14.8** | 697 | −119 |
+| Alnico5 (5 elem) | 5 | +727 | **20.1** | 870 | −143 |
+| Invar Fe₆₅Ni₃₅ | 2 | +653 | **15.9** | 257 | +396 |
+
+**Hiperco50 std = 39.8°C** is the highest among famous alloys — physically meaningful: Hiperco sits exactly at the Fe-Co Slater-Pauling synergy peak (Fe=Co=0.5), where small composition perturbations produce large Tc changes. The model correctly identifies this as a high-sensitivity region.
+
+### Uncertainty Calibration — Honest Assessment
+
+**NEMAD 618 samples, MC n=30:**
+
+| Metric | Value |
+|--------|-------|
+| Mean Tc_std | 23.5°C |
+| Tc_std range | 7.3–49.3°C |
+| Calibration r(std, \|error\|) | **+0.089** (p=0.027) |
+| r(n_elem, Tc_std) | +0.071 (p=0.078, n.s.) |
+
+**Quartile calibration (by Tc_std):**
+
+| Quartile | std range (°C) | mean \|error\| (°C) | mean std (°C) |
+|----------|--------------|---------------------|--------------|
+| Q1 (low) | 7.3–16.9 | 202 | 14 |
+| Q2 | 16.9–22.8 | 243 | 19 |
+| Q3 | 22.8–29.8 | 243 | 26 |
+| Q4 (high) | 29.8–49.3 | 257 | 34 |
+
+**Known limitation — systematic under-calibration:** MC Dropout Tc_std range (7–49°C) is ~10× smaller than true prediction errors (100–400°C). Q4 std is 2.4× Q1 std, but Q4 error is only 1.27× Q1 error. This is consistent with the literature (Lakshminarayanan et al., NeurIPS 2017: single-network MC Dropout systematically underestimates epistemic uncertainty; ensembles of ≥5 models required for reliable calibration).
+
+**Valid use:** Tc_std serves as a **relative ranking signal** — lower std candidates are statistically more reliable — but should not be used as an absolute confidence interval.
+
+### GA Uncertainty Integration (A3-6 Ablation)
+
+`GPUGeneticAlgorithm` accepts `enable_uncertainty=True` + `predict_fn_uncertainty` callable. Uncertainty penalty:
+
+```
+uncertainty_score = sigmoid((23.0 - tc_std) / 8.0)   # 23K = NEMAD median std
+F_total = F_base × (1 - w + w × uncertainty_score)    # w = uncertainty_weight = 0.10
+```
+
+**350°C scenario, 50K pop × 80 gen ablation:**
+
+| | no uncertainty | with uncertainty | delta |
+|--|--|--|--|
+| Top-1 fitness | 0.7888 | 0.7743 | −0.0145 (−1.8%) |
+| Top-1 Tc | 350.8°C | 349.3°C | −1.5°C |
+| Top-1 Tc_std | 15.0°C | **8.1°C** | **−45.7%** |
+| Top-5 mean Tc_std | 13.8°C | **11.5°C** | **−16.4%** |
+| Speed | 6.2 M/s | 0.47 M/s | **−14× slower** |
+
+The uncertainty penalty successfully steered GA toward lower-std compositions (Top-1 std −45.7%), at the cost of −1.8% fitness and 14× speed reduction. The fitness drop is within acceptable range; the speed cost makes `enable_uncertainty` suitable only for final refinement passes on small populations, not large-scale primary search.
+
+### Future Work
+
+- **Deep Ensemble (5 independent models):** Expected calibration improvement from r=0.09 to r>0.5 (Lakshminarayanan et al. 2017). ~60 min additional training time.
+- **Separate Si/Al dilution terms:** Would improve Sendust prediction (currently −110°C error).
+
+---
+
+## 10. Reproducibility
 
 ```bash
 python scripts/train_surrogate.py --n-samples 8000 --epochs 300 --seed 42

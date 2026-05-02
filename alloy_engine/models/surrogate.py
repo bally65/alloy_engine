@@ -32,12 +32,16 @@ GpuScaler = tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]
 
 # ── 模型架構 ──────────────────────────────────────────────────────────────────
 class PropertyMLP(nn.Module):
-    def __init__(self, in_dim: int, hidden: int = 128) -> None:
+    def __init__(self, in_dim: int, hidden: int = 128, dropout_rate: float = 0.10) -> None:
         super().__init__()
+        self.dropout_rate = dropout_rate
         self.net = nn.Sequential(
-            nn.Linear(in_dim, hidden),     nn.GELU(),
-            nn.Linear(hidden, hidden),     nn.GELU(),
+            nn.Linear(in_dim, hidden),      nn.GELU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden, hidden),      nn.GELU(),
+            nn.Dropout(dropout_rate),
             nn.Linear(hidden, hidden // 2), nn.GELU(),
+            nn.Dropout(dropout_rate),
             nn.Linear(hidden // 2, 1),
         )
 
@@ -204,6 +208,7 @@ class SurrogateBundle:
             "sc_strength":  self.sc_strength,
             "in_dim":       next(iter(self.mlp_tc.parameters())).shape[1],
             "hidden":       self.mlp_tc.net[0].out_features,
+            "dropout_rate": self.mlp_tc.dropout_rate,
         }
         torch.save(payload, path)
         logger.info("Checkpoint 已儲存至 %s", path)
@@ -214,11 +219,12 @@ class SurrogateBundle:
         path = Path(path)
         payload = torch.load(path, map_location=device, weights_only=False)
 
-        in_dim = payload["in_dim"]
-        hidden = payload["hidden"]
+        in_dim       = payload["in_dim"]
+        hidden       = payload["hidden"]
+        dropout_rate = payload.get("dropout_rate", 0.0)  # backwards-compatible
 
         def _build(key: str) -> PropertyMLP:
-            m = PropertyMLP(in_dim, hidden).to(device)
+            m = PropertyMLP(in_dim, hidden, dropout_rate).to(device)
             m.load_state_dict(payload[key])
             return m
 
@@ -256,3 +262,42 @@ class SurrogateBundle:
             "Br":       _pred(self.mlp_br,       self._sc_br_g),
             "strength": _pred(self.mlp_strength, self._sc_strength_g),
         }
+
+    def predict_properties_with_uncertainty(
+        self,
+        compositions: torch.Tensor,
+        n_samples: int = 30,
+    ) -> dict[str, torch.Tensor]:
+        """
+        MC Dropout 推論：n_samples 次 forward pass with Dropout active。
+
+        Args:
+            compositions: (N, NUM_ELEMENTS) on self.device
+            n_samples: Monte-Carlo samples (default 30)
+
+        Returns:
+            dict with 8 keys: Tc_mean, Tc_std, Hc_mean, Hc_std,
+                               Br_mean, Br_std, strength_mean, strength_std
+        """
+        models = [self.mlp_tc, self.mlp_hc, self.mlp_br, self.mlp_strength]
+        for m in models:
+            m.train()  # enables Dropout at inference time
+
+        keys = ["Tc", "Hc", "Br", "strength"]
+        samples: dict[str, list[torch.Tensor]] = {k: [] for k in keys}
+
+        with torch.no_grad():
+            for _ in range(n_samples):
+                preds = self.predict_properties(compositions)
+                for k in keys:
+                    samples[k].append(preds[k])
+
+        for m in models:
+            m.eval()
+
+        result: dict[str, torch.Tensor] = {}
+        for k in keys:
+            stacked = torch.stack(samples[k])   # (n_samples, N)
+            result[f"{k}_mean"] = stacked.mean(dim=0)
+            result[f"{k}_std"]  = stacked.std(dim=0)
+        return result

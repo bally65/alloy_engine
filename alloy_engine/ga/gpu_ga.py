@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Callable
+from typing import Callable, Optional
 
 import torch
 
@@ -30,6 +30,7 @@ from sklearn.cluster import KMeans
 logger = logging.getLogger(__name__)
 
 PredictFn = Callable[[torch.Tensor], dict[str, torch.Tensor]]
+UncertaintyFn = Callable[[torch.Tensor, int], dict[str, torch.Tensor]]
 
 
 def diversity_select(
@@ -80,36 +81,44 @@ def diversity_select(
 class GPUGeneticAlgorithm:
     def __init__(
         self,
-        predict_fn:         PredictFn,
-        device:             torch.device,
-        population_size:    int   = 200_000,
-        target_tc_celsius:  float = 350.0,
-        tc_tolerance:       float = 30.0,
-        min_strength_mpa:   float = 400.0,
-        max_hc:             float = 80.0,
-        mutation_rate:      float = 0.15,
-        mutation_sigma:     float = 0.06,
-        elite_ratio:        float = 0.05,
-        w_tc:               float = 0.40,
-        w_hc:               float = 0.20,
-        w_br:               float = 0.15,
-        w_strength:         float = 0.20,
-        w_hc_constraint:    float = 0.05,
+        predict_fn:           PredictFn,
+        device:               torch.device,
+        population_size:      int   = 200_000,
+        target_tc_celsius:    float = 350.0,
+        tc_tolerance:         float = 30.0,
+        min_strength_mpa:     float = 400.0,
+        max_hc:               float = 80.0,
+        mutation_rate:        float = 0.15,
+        mutation_sigma:       float = 0.06,
+        elite_ratio:          float = 0.05,
+        w_tc:                 float = 0.40,
+        w_hc:                 float = 0.20,
+        w_br:                 float = 0.15,
+        w_strength:           float = 0.20,
+        w_hc_constraint:      float = 0.05,
         enable_chemistry_constraints: bool = True,
+        enable_uncertainty:   bool  = False,
+        predict_fn_uncertainty: Optional[UncertaintyFn] = None,
+        n_mc_samples:         int   = 20,
+        uncertainty_weight:   float = 0.10,
     ) -> None:
-        self.predict_fn     = predict_fn
-        self.device         = device
-        self.N              = population_size
-        self.E              = NUM_ELEMENTS
-        self.target_tc_K    = target_tc_celsius + 273.15
-        self.tc_tol         = tc_tolerance
-        self.min_strength   = min_strength_mpa
-        self.max_hc         = max_hc
-        self.mut_rate       = mutation_rate
-        self.mut_sigma      = mutation_sigma
-        self.elite_ratio    = elite_ratio
-        self.weights        = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
+        self.predict_fn       = predict_fn
+        self.device           = device
+        self.N                = population_size
+        self.E                = NUM_ELEMENTS
+        self.target_tc_K      = target_tc_celsius + 273.15
+        self.tc_tol           = tc_tolerance
+        self.min_strength     = min_strength_mpa
+        self.max_hc           = max_hc
+        self.mut_rate         = mutation_rate
+        self.mut_sigma        = mutation_sigma
+        self.elite_ratio      = elite_ratio
+        self.weights          = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
         self.enable_chemistry_constraints = enable_chemistry_constraints
+        self.enable_uncertainty     = enable_uncertainty
+        self.predict_fn_uncertainty = predict_fn_uncertainty
+        self.n_mc_samples           = n_mc_samples
+        self.uncertainty_weight     = uncertainty_weight
 
         self.population = self._init_population()
         self.history: dict[str, list[float]] = defaultdict(list)
@@ -170,8 +179,20 @@ class GPUGeneticAlgorithm:
     def fitness(
         self, pop: torch.Tensor
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        preds = self.predict_fn(pop)
-        tc, hc, br, st = preds["Tc"], preds["Hc"], preds["Br"], preds["strength"]
+        if self.enable_uncertainty and self.predict_fn_uncertainty is not None:
+            preds = self.predict_fn_uncertainty(pop, self.n_mc_samples)
+            tc  = preds["Tc_mean"]
+            hc  = preds["Hc_mean"]
+            br  = preds["Br_mean"]
+            st  = preds["strength_mean"]
+            tc_std = preds["Tc_std"]
+        else:
+            preds = self.predict_fn(pop)
+            tc  = preds["Tc"]
+            hc  = preds["Hc"]
+            br  = preds["Br"]
+            st  = preds["strength"]
+            tc_std = None
 
         tc_score = torch.exp(-((tc - self.target_tc_K) ** 2) / (2 * self.tc_tol ** 2))
         hc_score = 1.0 / (1.0 + hc / 20.0)
@@ -188,7 +209,7 @@ class GPUGeneticAlgorithm:
         )
 
         w_tc, w_hc, w_br, w_st, w_hcc = self.weights
-        F_total = (
+        F_base = (
             w_tc  * tc_score
             + w_hc  * hc_score
             + w_br  * br_score
@@ -197,9 +218,21 @@ class GPUGeneticAlgorithm:
         )
 
         if self.enable_chemistry_constraints:
-            F_total = F_total * self._chemistry_penalty(pop)
+            F_base = F_base * self._chemistry_penalty(pop)
 
-        return F_total, {"tc": tc, "hc": hc, "br": br, "strength": st}
+        if self.enable_uncertainty and tc_std is not None:
+            # sigmoid mapping: median std=23K → score=0.5; std=10 → ≈0.85; std=40 → ≈0.15
+            uncertainty_score = torch.sigmoid((23.0 - tc_std) / 8.0)
+            F_total = F_base * (1.0 - self.uncertainty_weight
+                                + self.uncertainty_weight * uncertainty_score)
+        else:
+            F_total = F_base
+
+        info = {
+            "tc": tc, "hc": hc, "br": br, "strength": st,
+            "tc_std": tc_std if tc_std is not None else torch.zeros_like(tc),
+        }
+        return F_total, info
 
     # ── 遺傳算子 ──────────────────────────────────────────────────────────────
     def _tournament_select(
@@ -247,6 +280,7 @@ class GPUGeneticAlgorithm:
         self.history["best_strength"].append(info["strength"][bi].item())
         self.history["best_hc"].append(info["hc"][bi].item())
         self.history["best_br"].append(info["br"][bi].item())
+        self.history["best_tc_std"].append(info["tc_std"][bi].item())
         return fit, info
 
     # ── 主迴圈 ────────────────────────────────────────────────────────────────

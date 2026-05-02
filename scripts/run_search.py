@@ -59,6 +59,12 @@ def parse_args() -> argparse.Namespace:
                    help="K-means 聚類數 = 輸出候選數（--diversity-filter 時生效）")
     p.add_argument("--diversity-pool",           type=int,  default=1000,
                    help="聚類母體大小（先取 fitness 前 N 名再做 K-means）")
+    p.add_argument("--enable-uncertainty",       action="store_true",
+                   help="啟用 MC Dropout uncertainty penalty（每 step 30 倍慢，建議搭配小族群）")
+    p.add_argument("--n-mc-samples",             type=int,  default=20,
+                   help="MC Dropout 取樣次數（--enable-uncertainty 時生效）")
+    p.add_argument("--uncertainty-weight",       type=float, default=0.10,
+                   help="Uncertainty penalty 最大佔 fitness 比例（預設 0.10）")
     return p.parse_args()
 
 
@@ -70,6 +76,7 @@ def main() -> None:
     logger.info("運算裝置: %s", device)
     logger.info("化學約束: %s", "停用" if args.no_chemistry_constraints else "啟用")
     logger.info("多樣性篩選: %s", f"啟用 (K={args.diversity_k})" if args.diversity_filter else "停用")
+    logger.info("Uncertainty penalty: %s", f"啟用 (n_mc={args.n_mc_samples}, w={args.uncertainty_weight})" if args.enable_uncertainty else "停用")
 
     # 1. 載入 checkpoint
     if not args.checkpoint.exists():
@@ -100,6 +107,11 @@ def main() -> None:
             device=device,
             population_size=args.population_size,
             enable_chemistry_constraints=not args.no_chemistry_constraints,
+            enable_uncertainty=args.enable_uncertainty,
+            predict_fn_uncertainty=(bundle.predict_properties_with_uncertainty
+                                    if args.enable_uncertainty else None),
+            n_mc_samples=args.n_mc_samples,
+            uncertainty_weight=args.uncertainty_weight,
             **cfg,
         )
         t0 = time.time()
@@ -128,13 +140,14 @@ def main() -> None:
             top_idx = np.argsort(fit_np)[::-1][: args.top_n]
 
         results[name] = {
-            "config":   cfg,
+            "config":    cfg,
             "top_comps": pop_np[top_idx],
             "top_fit":   fit_np[top_idx],
             "top_tc_C":  (info["tc"].cpu().numpy()[top_idx] - 273.15),
             "top_hc":    info["hc"].cpu().numpy()[top_idx],
             "top_br":    info["br"].cpu().numpy()[top_idx],
             "top_str":   info["strength"].cpu().numpy()[top_idx],
+            "top_tc_std": info["tc_std"].cpu().numpy()[top_idx],
             "history":   dict(ga.history),
         }
 
@@ -150,11 +163,12 @@ def main() -> None:
             row = {"scenario": name, "rank": i + 1}
             for j, e in enumerate(ELEMENTS):
                 row[f"{e}_at%"] = round(c[j] * 100, 2)
-            row["Tc_C"]        = round(float(res["top_tc_C"][i]), 1)
-            row["Hc_A_m"]      = round(float(res["top_hc"][i]),   2)
-            row["Br_T"]        = round(float(res["top_br"][i]),    3)
-            row["sigma_y_MPa"] = round(float(res["top_str"][i]),   0)
-            row["fitness"]     = round(float(res["top_fit"][i]),   4)
+            row["Tc_C"]        = round(float(res["top_tc_C"][i]),  1)
+            row["Hc_A_m"]      = round(float(res["top_hc"][i]),    2)
+            row["Br_T"]        = round(float(res["top_br"][i]),     3)
+            row["sigma_y_MPa"] = round(float(res["top_str"][i]),    0)
+            row["Tc_std_C"]    = round(float(res["top_tc_std"][i]), 2)
+            row["fitness"]     = round(float(res["top_fit"][i]),    4)
             rows.append(row)
 
     csv_path = args.output_dir / "top_alloy_candidates.csv"
