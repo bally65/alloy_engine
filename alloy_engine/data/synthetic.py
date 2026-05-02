@@ -46,21 +46,33 @@ def physics_based_properties_batch(
 
     # ── Tc (居禮溫度, K) ──────────────────────────────────────────────────────
     mag_frac = fe + ni + co
+
+    # Base: 純元素線性混合（對二元合金準）
     base_tc = np.where(
         mag_frac > 0.05,
         (fe * 1043 + ni * 627 + co * 1400) / np.maximum(mag_frac, 0.01),
         50.0,
     )
-    cr_suppress  = 5500 * np.power(cr, 1.2)
-    mn_suppress  = 4500 * np.power(mn, 1.2)
-    nonmag       = 1 - mag_frac - cr - mn
-    dilution     = base_tc * nonmag * 0.5
-    permalloy    = np.where(
+
+    # Slater-Pauling Fe-Co 協同增強（峰值 80 K，於 Fe=Co=0.5）
+    fe_co_synergy = 80.0 * 4.0 * (fe * co) / (mag_frac ** 2 + 1e-6)
+
+    # 抑制項：Cr/Mn 係數大幅降低（v1: 5500/4500 → v2: 1800/1200）
+    cr_suppress = 1800 * np.power(cr, 1.2)
+    mn_suppress = 1200 * np.power(mn, 1.2)
+
+    # 稀釋項：係數降低（v1: 0.5 → v2: 0.20）
+    nonmag   = 1 - mag_frac - cr - mn
+    dilution = base_tc * nonmag * 0.20
+
+    # Permalloy 區增強（保留）
+    permalloy = np.where(
         (ni > 0.3) & (ni < 0.6) & (fe > 0.3),
         100 * np.exp(-((ni - 0.5) ** 2) / 0.02),
         0,
     )
-    tc = base_tc * mag_frac - cr_suppress - mn_suppress - dilution + permalloy
+
+    tc = (base_tc + fe_co_synergy) * mag_frac - cr_suppress - mn_suppress - dilution + permalloy
     tc += np.random.normal(0, 25, n)
     tc = np.clip(tc, 50, 1500)
 

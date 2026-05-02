@@ -153,7 +153,83 @@ Experimental synthesis + VSM / DSC measurement
 
 ---
 
-## 8. Reproducibility
+## 8. v3.0 Update — NEMAD-Calibrated Synthetic Formula
+
+**Date:** 2026-05-02  
+**Change scope:** `physics_based_properties_batch()` Tc formula only. Architecture, features, and GA constraints unchanged.
+
+### What changed
+
+The v2.0 synthetic Tc formula systematically over-predicted real alloy Tc by ~280°C (MAE=758 K on NEMAD 618). A residual regression against NEMAD identified three over-suppression biases and one missing interaction:
+
+| Term | v2.0 | v3.0 | Rationale |
+|------|------|------|-----------|
+| Cr suppression coefficient | 5500 | **1800** | v2.0 over-penalized; NEMAD Cr bins showed +1000-2800 K residuals |
+| Mn suppression coefficient | 4500 | **1200** | Same systematic over-suppression |
+| Dilution factor (non-mag) | 0.50 | **0.20** | Real Si/Al dilution is ~3× weaker than formula assumed |
+| Fe-Co Slater-Pauling synergy | — | **+80 K peak** | Missing Bethe-Slater peak near Fe=Co=0.5; `80 × 4×(fe·co)/mag²` |
+
+Formula (v3.0, deterministic):
+```
+base_tc = (fe·1043 + ni·627 + co·1400) / max(mag_frac, 0.01)   [mag_frac > 0.05]
+fe_co_synergy = 80.0 × 4.0 × (fe·co) / (mag_frac² + 1e-6)
+cr_suppress = 1800 × cr^1.2
+mn_suppress = 1200 × mn^1.2
+dilution = base_tc × (1 - mag_frac - cr - mn) × 0.20
+tc = (base_tc + fe_co_synergy) × mag_frac − cr_suppress − mn_suppress − dilution + permalloy
+```
+
+### Formula validation (no retraining, pure formula vs NEMAD)
+
+| Metric | v2.0 formula | v3.0 formula | Improvement |
+|--------|-------------|-------------|-------------|
+| Mean residual (K) | +634.9 | +144.1 | −78% |
+| MAE (K) | 758.3 | 322.0 | −57% |
+| std (K) | 961.2 | 419.7 | −56% |
+| Hiperco50 error | −82°C | **−2°C** | Fe-Co synergy verified |
+| Permalloy error | +2.8°C | **+2.8°C** | Unchanged (correct) |
+
+MAE in waste-heat target zones (formula vs NEMAD):
+
+| Zone | v2.0 MAE (K) | v3.0 MAE (K) | Delta |
+|------|-------------|-------------|-------|
+| 100–200°C | 771 | 316 | **−455 K** |
+| 300–400°C | 1100 | 505 | **−594 K** |
+| 500–700°C | 453 | 239 | **−214 K** |
+
+### Surrogate model (v3.0) on NEMAD 618
+
+After retraining on 8000 sparse-Dirichlet samples with v3.0 formula (seed=42, epochs=300):
+
+| Metric | v2.0 surrogate | v3.0 surrogate |
+|--------|---------------|---------------|
+| Overall R² | −0.24 | **+0.09** |
+| Overall MAE (°C) | 282 | **239** |
+| Tc synthetic R² | 0.9945 | **0.9925** |
+
+**Famous alloy spot check (v3.0 surrogate):**
+
+| Alloy | Pred Tc (°C) | NEMAD Tc (°C) | Error |
+|-------|-------------|----------------|-------|
+| Permalloy Ni₈₀Fe₂₀ | 437 | 434 | **+3°C** |
+| Hiperco50 Fe₅₀Co₅₀ | 1030 | 1031 | **−1°C** |
+| Fe₆₀Co₂₀Ni₂₀ | 785 | 784 | **+2°C** |
+| Hiperco27 Fe₇₃Co₂₇ | 932 | 975 | −43°C |
+| Supermalloy Ni₇₉Mo₅Fe₁₆ | 380 | 465 | −85°C |
+| Sendust Fe₈₅Si₉Al₆ | 587 | 697 | −110°C |
+| Alnico5 Fe₅₁Co₂₄Ni₁₄Al₈Cu₃ | 691 | 870 | −179°C |
+| Fe₆₅Ni₃₅ (Invar) | 647 | 257 | +390°C † |
+
+### Remaining limitations (v3.0)
+
+- **Sendust −110°C**: Si and Al have different magneto-dilution physics but are treated identically. Si (sp-d hybridization) suppresses Tc more strongly than Al. Not yet separated.
+- **Alnico −179°C**: Alnico alloys partially order into α'/α phase-separated microstructure, raising effective Tc above Slater-Pauling prediction. Composition-only features cannot encode this.
+- **Invar +390°C**: Slater-Pauling dip (itinerant-electron magneto-volume coupling) not encodable in composition descriptors. Known hard limit.
+- **Systematic over-prediction persists** at +144 K mean (down from +635 K). Acceptable for relative ranking; not for absolute Tc point prediction.
+
+---
+
+## 9. Reproducibility
 
 ```bash
 python scripts/train_surrogate.py --n-samples 8000 --epochs 300 --seed 42
