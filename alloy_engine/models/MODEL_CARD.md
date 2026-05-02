@@ -324,7 +324,69 @@ The uncertainty penalty successfully steered GA toward lower-std compositions (T
 
 ---
 
-## 10. Reproducibility
+## 10. v3.2 Update — Hc / Br / σy Indirect Validation
+
+**Date:** 2026-05-02  
+**Method:** Spearman rank correlation, 10 famous alloys (9 soft + 1 hard magnetic)  
+**Why indirect:** NEMAD local repo contains only Tc/Néel temperature; no experimental Hc/Br/σy records available without external download. Direct R² validation deferred to future work.
+
+### Data
+
+| Alloy | Hc lit (A/m) | Br lit (T) | σy lit (MPa) |
+|-------|-------------|-----------|-------------|
+| Supermalloy Ni₇₉Fe₁₆Mo₅ | 0.16 | 0.70 | 290 |
+| Mu-Metal Ni₇₇Fe₁₄Cu₅Mo₄ | 0.20 | 0.60 | 240 |
+| Permalloy Ni₈₀Fe₂₀ | 0.40 | 0.70 | 220 |
+| Sendust Fe₈₅Si₉Al₆ | 5 | 1.00 | 350 |
+| Silicon Steel Fe₉₇Si₃ | 40 | 2.00 | 310 |
+| Pure Ni | 60 | 0.60 | 140 |
+| Pure Fe | 80 | 1.40 | 130 |
+| Hiperco50 Fe₅₀Co₅₀ | 80 | 2.40 | 420 |
+| Permendur Fe₅₀Co₄₈V₂ | 160 | 2.40 | 470 |
+| Alnico5 (hard mag, control) | 51,000 | 1.25 | 380 |
+
+Sources: Bozorth (1951), Cullity & Graham (2009), Carpenter Technology, Magnetics Inc., NEMA datasheets.
+
+### Spearman Rank Correlations
+
+| Property | Full r (n=10) | p | Soft-only r (n=9) | p | Verdict |
+|----------|--------------|---|-------------------|---|---------|
+| **Br** | **+0.869** | 0.001 | **+0.836** | 0.005 | ✅ Strong |
+| σy | +0.261 | 0.467 | — | — | ❌ Weak |
+| **Hc** | **−0.310** | 0.383 | **−0.050** | 0.898 | ❌ Failed |
+
+### Key Findings
+
+**Br (strong, r = +0.836, p = 0.005):** Ranking order is physically correct. Low-Fe Ni-based alloys (Permalloy, Mu-Metal, Supermalloy, Pure Ni) correctly ranked as low-Br; Fe-rich alloys (Pure Fe, Si-Steel) ranked above. Systematic under-prediction of −0.3 to −1.6 T reflects uncalibrated saturation coefficient in synthetic formula (`Br = mag_moment × 0.4`). **Br predictions are valid for relative ranking.**
+
+**Hc (failed, soft-only r = −0.050):** All predictions cluster in 143–299 A/m regardless of material; literature spans 0.16–51,000 A/m (six orders of magnitude). Root cause: synthetic Hc formula (`base_hc = 50 + 250|Fe−Ni| - 30·Si + 100·(Cu+Mo)`) is a composition-based microstructural softness proxy — it has no concept of magneto-crystalline anisotropy (K₁), domain wall pinning density, grain size, or texture. **Hc predictions are unreliable for ranking; use only as a qualitative low-Hc optimization signal.**
+
+**Hard/soft separation:** Alnico5 predicted Hc = 143 A/m — ranked *lowest* among all 10 alloys, the exact inverse of truth (lit: 51,000 A/m, rank 1/10). Hard/soft ratio 0.6× vs expected 100–1000×. The model has no concept of permanent-magnet physics.
+
+**σy (weak, r = +0.261, not significant):** Pure Fe and Ni systematically over-predicted (model has no annealed-state concept). Correct direction for solid-solution strengthening elements but not reliable for ranking.
+
+### Known Limitations
+
+1. **n = 10** — Spearman with n=10 has high variance; results are indicative.
+2. **σy literature values are annealed state** — model output is unspecified processing state.
+3. **Br literature ≈ Ms** — valid approximation for soft magnetics (squareness ≈ 1).
+4. **Alnico5 outside model scope** — α'/α phase separation; composition-only model cannot predict magneto-crystalline hardness.
+5. **Hc is microstructure-dependent** — composition-only model is fundamentally insufficient for Hc absolute prediction.
+
+### Revised Property Usage Guidance
+
+| Property | Use case | Reliability |
+|----------|----------|-------------|
+| Tc | Target zone selection, relative ranking | Moderate (MAE ±240°C, R²=+0.09 on NEMAD) |
+| **Br** | **Relative ranking for remanence** | **Good (Spearman r=+0.84)** |
+| Hc | Qualitative low-Hc directional signal only | Poor (ranking r≈0) |
+| σy | Screening very-weak compositions | Low (r=+0.26, not significant) |
+
+Full ranking tables and raw data: `results/a1_ranking_test.md`, `results/a1_ranking_raw.csv`
+
+---
+
+## 11. Reproducibility
 
 ```bash
 python scripts/train_surrogate.py --n-samples 8000 --epochs 300 --seed 42
