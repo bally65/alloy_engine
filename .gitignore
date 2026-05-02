@@ -1,0 +1,30 @@
+# 虛擬環境
+.venv/
+
+# 外部 repo（不進 git history）
+external/
+
+# 資料快取
+alloy_engine/data/.cache/
+
+# 模型 checkpoint（大檔案）
+alloy_engine/models/checkpoints/
+
+# 環境變數（含 API Key）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# 執行結果
+results/
+
+# OS
+.DS_Store
+Thumbs.db
