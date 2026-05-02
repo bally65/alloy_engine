@@ -1,11 +1,12 @@
-# Alloy Discovery Engine
+# 熱磁發動機合金虛擬高通量篩選
 
-工業廢熱消磁合金 GPU 加速虛擬高通量篩選引擎。
+工業廢熱 Curie 馬達合金 GPU 加速虛擬高通量篩選引擎。
 
 尋找滿足下列條件的合金配方：
-- 居禮溫度 (Tc) 落在工業廢熱範圍（150 / 350 / 500°C）
-- 矯頑力 (Hc) 與剩磁 (Br) 越低越好（軟磁特性）
-- 降伏強度 σy ≥ 設定下限（保留機械強度）
+- 居禮溫度 (Tc) 落在工業廢熱範圍（150 / 350 / 500°C），偏高 +20~30K 為工程最佳區
+- 熱磁循環淨磁化變化 (delta_M = M(T-30K) - M(T+30K)) 最大化（Olsen 循環能量代理）
+- 熱導率 (κ) 足夠（促進循環頻率），合理上限 130 W/mK
+- 降伏強度 σy ≥ 150 MPa（薄片感應器用途）
 
 ## Quick Start
 
@@ -70,43 +71,35 @@ external/
 | `--no-chemistry-constraints` | False | 停用化學可合成性懲罰（對照實驗用） |
 | `--diversity-filter` | False | 啟用 K-means 多樣性篩選 |
 
-## Final Results (v2.0)
+## Final Results
 
-### 三廢熱情境最佳配方
+### 熱磁模式 (mode=thermomagnetic, v4.1)
+
+GA 以 Olsen 循環能量最大化為主要目標（delta_M + tc_window_score），並施加 Cu 含量與 delta_M 硬約束。
+
+| 情境 | 目標 Tc | 最佳配方（at%） | Tc 偏差 | delta_M | kappa | 工業類比 |
+|------|---------|---------------|---------|---------|-------|---------|
+| 低溫廢熱 | 150°C | Fe₆₉Cr₂₁Cu₈Si₂ | +15°C | 0.20 T | 109 W/mK | Silicon Steel 系 |
+| 中溫廢熱 | 350°C | Fe₇₇Cr₁₁Cu₁₀Mo₁Mn₁ | +23°C | 0.20 T | 115 W/mK | Fe-Cr 軟磁 |
+| 高溫廢熱 | 500°C | Fe₈₃Cu₁₁Cr₄Mn₁ | +24°C | 0.20 T | 115 W/mK | 高溫 Fe-Cu 合金 |
+
+GA 搜尋條件：100K 族群 × 150 代，化學約束啟用（DO₃/μ-phase/σ-phase/FM 基底/Cu 反稀釋懲罰）。
+
+### 軟磁模式 (mode=softmag, v3.x 行為)
+
+低矯頑力、低剩磁最佳化，適合磁心材料。詳見 v3.0 release notes。
 
 | 情境 | 目標 Tc | 最佳配方（at%） | 預測 Tc | Fitness |
 |------|---------|---------------|---------|---------|
-| 低溫廢熱 | 150°C | Fe₂₄Ni₂₈Co₁₇Cr₄Si₁₈V₈ | 149.3°C | 0.8003 |
-| 中溫廢熱 | 350°C | Fe₂₈Ni₃₀Co₁₈Al₆V₁₈ | 350.0°C | 0.7960 |
-| 高溫廢熱 | 500°C | Fe₂₀Ni₂₄Co₃₆Mo₅V₁₅ | 497.7°C | 0.7866 |
-
-GA 搜尋條件：100K 族群 × 150 代，化學約束啟用（DO₃/μ-phase/σ-phase/FM 基底懲罰）。
-
-### 著名合金 Sanity Check（v2.0 模型）
-
-| 合金 | 預測 Tc | 實驗 Tc (NEMAD) | 誤差 |
-|------|--------|----------------|------|
-| Permalloy Ni₈₀Fe₂₀ | 437°C | 434°C | +3°C |
-| Fe₆₀Co₂₀Ni₂₀ | 746°C | 784°C | −38°C |
-| Hiperco50 Fe₅₀Co₅₀ | 954°C | 1031°C | −77°C |
-| Supermalloy Ni₇₉Mo₅Fe₁₆ | 372°C | 465°C | −93°C |
-| Sendust Fe₈₅Si₉Al₆ | 534°C | 697°C | −163°C |
-| Alnico5 Fe₅₁Co₂₄Ni₁₄Al₈Cu₃ | 613°C | 870°C | −257°C |
-| Fe₆₅Ni₃₅ (Invar) | 649°C | 257°C | +392°C * |
-
-\* Invar 磁體積異常，組成特徵無法編碼，為已知物理限制。
-
-### NEMAD 真實資料驗證
-
-- 資料集：618 筆篩選後 NEMAD 實驗資料（Fe/Ni/Co/Cr/Mn/Cu/Mo/Si/Al/V 十元素空間）
-- 整體 R² = −0.24，MAE = 282°C
-- 模型系統性高估 ~280°C（合成 Tc 公式偏差），但所有預測值在物理合理範圍內（−100 ~ 1300°C）
+| 低溫廢熱 | 150°C | Fe₂₀Ni₂₄Co₁₆Cr₁₀Si₁₉V₇Mn₃Mo₁ | 149.9°C | 0.8048 |
+| 中溫廢熱 | 350°C | Fe₂₄Ni₂₇Co₁₉Si₂₀V₆Cr₃Mn₁ | 350.1°C | 0.8012 |
+| 高溫廢熱 | 500°C | Fe₂₁Ni₂₅Co₃₁V₂₀Mo₂Cr₁ | 498.5°C | 0.7926 |
 
 ### 已知限制
 
-- 系統性 Tc 高估約 280°C（合成訓練資料與真實合金的 sim-to-real gap）
-- Invar 類磁體積異常合金不適用
-- Mo > 5 at% 或 V > 8 at% 區域實驗資料極稀（NEMAD Mo: 9 筆，V: 47 筆），預測可信度低
+- Tc 系統性偏差仍存在（NEMAD sim-to-real gap，MAE ~239°C）
+- delta_M = 0.20 T 受元素空間限制，工業 Gd 可達 0.6 T
+- 無稀土元素（Gd/Tb/Dy），低溫熱磁應用受限
 - 模型假設無序固溶體，不適用有序金屬間化合物
 
 詳見 `alloy_engine/models/MODEL_CARD.md`。
