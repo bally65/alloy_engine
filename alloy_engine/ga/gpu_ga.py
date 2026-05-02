@@ -103,11 +103,11 @@ class GPUGeneticAlgorithm:
         uncertainty_weight:   float = 0.10,
         # ── thermomagnetic mode ───────────────────────────────────────────────
         mode:                 str   = "softmag",   # "softmag" | "thermomagnetic"
-        w_tc_tm:              float = 0.45,
-        w_delta_M:            float = 0.25,
+        w_tc_tm:              float = 0.30,
+        w_delta_M:            float = 0.30,
         w_kappa:              float = 0.10,
         w_strength_tm:        float = 0.10,
-        w_tc_window:          float = 0.10,
+        w_tc_window:          float = 0.20,
         delta_T_window:       float = 30.0,        # 循環半溫差 (K)
         min_strength_mpa_thermomagnetic: float = 150.0,
     ) -> None:
@@ -189,6 +189,13 @@ class GPUGeneticAlgorithm:
         deficit_mag = torch.clamp(0.40 - mag_base, min=0.0) / 0.40
         penalty = penalty * (1.0 - 0.50 * torch.clamp(deficit_mag, max=1.0))
 
+        # Cu > 20% → 熱磁模式懲罰（Cu 非磁性，稀釋磁矩；工業熱磁合金上限 ~10%）
+        if self.mode == "thermomagnetic":
+            cu = pop[:, _IDX["Cu"]]
+            cu_excess = torch.clamp(cu - 0.20, min=0.0)
+            cu_penalty = torch.exp(-cu_excess * 8.0)
+            penalty = penalty * cu_penalty
+
         return penalty  # (N,)，範圍 (0, 1]
 
     # ── 適應度（軟磁 mode）────────────────────────────────────────────────────
@@ -263,11 +270,13 @@ class GPUGeneticAlgorithm:
         tc_hit = torch.exp(-((tc_C - self.target_tc_celsius) ** 2)
                            / (2 * self.tc_tol ** 2))
 
-        # delta_M normalize：假設有效範圍 0–1.0 T（Br 最大 ~1.0 in training）
-        delta_M_score = torch.clamp(thermo["delta_M"] / 1.0, 0.0, 1.0)
+        # delta_M normalize：基準 0.5 T（Permalloy 工業循環實測值）+ power 0.7 增敏
+        # delta_M=0.50→1.00, 0.30→0.69, 0.13→0.36
+        delta_M_ratio = torch.clamp(thermo["delta_M"] / 0.5, 0.0, 1.0)
+        delta_M_score = delta_M_ratio ** 0.7
 
-        # kappa normalize：30–200 W/mK 有效區間
-        kappa_score = torch.clamp((kappa - 30.0) / 170.0, 0.0, 1.0)
+        # kappa normalize：50–130 W/mK 線性 cap（>130 不再加分，抑制 Cu 異常值）
+        kappa_score = torch.clamp((kappa - 50.0) / 80.0, 0.0, 1.0)
 
         strength_score = torch.where(
             st >= self.min_strength,
@@ -283,6 +292,15 @@ class GPUGeneticAlgorithm:
             + w_st  * strength_score
             + w_win * thermo["tc_window_score"]
         )
+
+        # 硬約束：delta_M < 0.20 T 視為熱磁應用不可用，嚴重懲罰
+        low_dM_mask = thermo["delta_M"] < 0.20
+        low_dM_penalty = torch.where(
+            low_dM_mask,
+            (thermo["delta_M"] / 0.20) ** 2,
+            torch.ones_like(thermo["delta_M"]),
+        )
+        F_base = F_base * low_dM_penalty
 
         if self.enable_chemistry_constraints:
             F_base = F_base * self._chemistry_penalty(pop)
