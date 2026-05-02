@@ -59,6 +59,9 @@ def parse_args() -> argparse.Namespace:
                    help="K-means 聚類數 = 輸出候選數（--diversity-filter 時生效）")
     p.add_argument("--diversity-pool",           type=int,  default=1000,
                    help="聚類母體大小（先取 fitness 前 N 名再做 K-means）")
+    p.add_argument("--mode",                     type=str, default="softmag",
+                   choices=["softmag", "thermomagnetic"],
+                   help="GA fitness mode: softmag (default) or thermomagnetic")
     p.add_argument("--enable-uncertainty",       action="store_true",
                    help="啟用 MC Dropout uncertainty penalty（每 step 30 倍慢，建議搭配小族群）")
     p.add_argument("--n-mc-samples",             type=int,  default=20,
@@ -76,6 +79,7 @@ def main() -> None:
     logger.info("運算裝置: %s", device)
     logger.info("化學約束: %s", "停用" if args.no_chemistry_constraints else "啟用")
     logger.info("多樣性篩選: %s", f"啟用 (K={args.diversity_k})" if args.diversity_filter else "停用")
+    logger.info("GA mode: %s", args.mode)
     logger.info("Uncertainty penalty: %s", f"啟用 (n_mc={args.n_mc_samples}, w={args.uncertainty_weight})" if args.enable_uncertainty else "停用")
 
     # 1. 載入 checkpoint
@@ -112,6 +116,7 @@ def main() -> None:
                                     if args.enable_uncertainty else None),
             n_mc_samples=args.n_mc_samples,
             uncertainty_weight=args.uncertainty_weight,
+            mode=args.mode,
             **cfg,
         )
         t0 = time.time()
@@ -139,7 +144,7 @@ def main() -> None:
         else:
             top_idx = np.argsort(fit_np)[::-1][: args.top_n]
 
-        results[name] = {
+        res_entry = {
             "config":    cfg,
             "top_comps": pop_np[top_idx],
             "top_fit":   fit_np[top_idx],
@@ -150,6 +155,12 @@ def main() -> None:
             "top_tc_std": info["tc_std"].cpu().numpy()[top_idx],
             "history":   dict(ga.history),
         }
+        if "delta_M" in info:
+            res_entry["top_delta_M"]  = info["delta_M"].cpu().numpy()[top_idx]
+            res_entry["top_kappa"]    = info["kappa"].cpu().numpy()[top_idx]
+            res_entry["top_M_at_low"] = info["M_at_low"].cpu().numpy()[top_idx]
+            res_entry["top_M_at_high"]= info["M_at_high"].cpu().numpy()[top_idx]
+        results[name] = res_entry
 
     # 5. 視覺化
     plot_convergence(results, save_path=args.output_dir / "ga_convergence.png")
@@ -168,6 +179,11 @@ def main() -> None:
             row["Br_T"]        = round(float(res["top_br"][i]),     3)
             row["sigma_y_MPa"] = round(float(res["top_str"][i]),    0)
             row["Tc_std_C"]    = round(float(res["top_tc_std"][i]), 2)
+            if "top_delta_M" in res:
+                row["delta_M_T"]   = round(float(res["top_delta_M"][i]),   4)
+                row["kappa_WmK"]   = round(float(res["top_kappa"][i]),     1)
+                row["M_at_low_T"]  = round(float(res["top_M_at_low"][i]),  4)
+                row["M_at_high_T"] = round(float(res["top_M_at_high"][i]), 4)
             row["fitness"]     = round(float(res["top_fit"][i]),    4)
             rows.append(row)
 

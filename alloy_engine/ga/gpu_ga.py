@@ -101,24 +101,41 @@ class GPUGeneticAlgorithm:
         predict_fn_uncertainty: Optional[UncertaintyFn] = None,
         n_mc_samples:         int   = 20,
         uncertainty_weight:   float = 0.10,
+        # ── thermomagnetic mode ───────────────────────────────────────────────
+        mode:                 str   = "softmag",   # "softmag" | "thermomagnetic"
+        w_tc_tm:              float = 0.45,
+        w_delta_M:            float = 0.25,
+        w_kappa:              float = 0.10,
+        w_strength_tm:        float = 0.10,
+        w_tc_window:          float = 0.10,
+        delta_T_window:       float = 30.0,        # 循環半溫差 (K)
+        min_strength_mpa_thermomagnetic: float = 150.0,
     ) -> None:
         self.predict_fn       = predict_fn
         self.device           = device
         self.N                = population_size
         self.E                = NUM_ELEMENTS
+        self.target_tc_celsius = target_tc_celsius
         self.target_tc_K      = target_tc_celsius + 273.15
         self.tc_tol           = tc_tolerance
-        self.min_strength     = min_strength_mpa
         self.max_hc           = max_hc
         self.mut_rate         = mutation_rate
         self.mut_sigma        = mutation_sigma
         self.elite_ratio      = elite_ratio
-        self.weights          = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
         self.enable_chemistry_constraints = enable_chemistry_constraints
         self.enable_uncertainty     = enable_uncertainty
         self.predict_fn_uncertainty = predict_fn_uncertainty
         self.n_mc_samples           = n_mc_samples
         self.uncertainty_weight     = uncertainty_weight
+
+        self.mode = mode
+        if mode == "thermomagnetic":
+            self.min_strength = min_strength_mpa_thermomagnetic
+            self.tm_weights   = (w_tc_tm, w_delta_M, w_kappa, w_strength_tm, w_tc_window)
+            self.delta_T_window = delta_T_window
+        else:
+            self.min_strength = min_strength_mpa
+            self.weights      = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
 
         self.population = self._init_population()
         self.history: dict[str, list[float]] = defaultdict(list)
@@ -174,25 +191,14 @@ class GPUGeneticAlgorithm:
 
         return penalty  # (N,)，範圍 (0, 1]
 
-    # ── 適應度 ────────────────────────────────────────────────────────────────
-    @torch.no_grad()
-    def fitness(
-        self, pop: torch.Tensor
+    # ── 適應度（軟磁 mode）────────────────────────────────────────────────────
+    def _fitness_softmag(
+        self, pop: torch.Tensor, preds: dict, tc_std=None
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        if self.enable_uncertainty and self.predict_fn_uncertainty is not None:
-            preds = self.predict_fn_uncertainty(pop, self.n_mc_samples)
-            tc  = preds["Tc_mean"]
-            hc  = preds["Hc_mean"]
-            br  = preds["Br_mean"]
-            st  = preds["strength_mean"]
-            tc_std = preds["Tc_std"]
-        else:
-            preds = self.predict_fn(pop)
-            tc  = preds["Tc"]
-            hc  = preds["Hc"]
-            br  = preds["Br"]
-            st  = preds["strength"]
-            tc_std = None
+        tc  = preds["Tc"]
+        hc  = preds["Hc"]
+        br  = preds["Br"]
+        st  = preds["strength"]
 
         tc_score = torch.exp(-((tc - self.target_tc_K) ** 2) / (2 * self.tc_tol ** 2))
         hc_score = 1.0 / (1.0 + hc / 20.0)
@@ -221,18 +227,99 @@ class GPUGeneticAlgorithm:
             F_base = F_base * self._chemistry_penalty(pop)
 
         if self.enable_uncertainty and tc_std is not None:
-            # sigmoid mapping: median std=23K → score=0.5; std=10 → ≈0.85; std=40 → ≈0.15
             uncertainty_score = torch.sigmoid((23.0 - tc_std) / 8.0)
             F_total = F_base * (1.0 - self.uncertainty_weight
                                 + self.uncertainty_weight * uncertainty_score)
         else:
             F_total = F_base
 
-        info = {
-            "tc": tc, "hc": hc, "br": br, "strength": st,
-            "tc_std": tc_std if tc_std is not None else torch.zeros_like(tc),
+        zero_std = torch.zeros_like(tc) if tc_std is None else tc_std
+        return F_total, {"tc": tc, "hc": hc, "br": br, "strength": st,
+                         "tc_std": zero_std}
+
+    # ── 適應度（熱磁 mode）────────────────────────────────────────────────────
+    def _fitness_thermomagnetic(
+        self, pop: torch.Tensor, preds: dict
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        from alloy_engine.thermomagnetic.properties import (
+            thermal_conductivity_estimate,
+            magnetic_thermodynamic_score,
+        )
+
+        tc_K = preds["Tc"]
+        hc   = preds["Hc"]
+        br   = preds["Br"]   # Br 作為 Ms 代理（Spearman r=0.84 已驗證）
+        st   = preds["strength"]
+
+        thermo = magnetic_thermodynamic_score(
+            Ms=br,
+            Tc_K=tc_K,
+            T_target_C=self.target_tc_celsius,
+            delta_T_window=self.delta_T_window,
+        )
+        kappa = thermal_conductivity_estimate(pop)
+
+        tc_C = tc_K - 273.15
+        tc_hit = torch.exp(-((tc_C - self.target_tc_celsius) ** 2)
+                           / (2 * self.tc_tol ** 2))
+
+        # delta_M normalize：假設有效範圍 0–1.0 T（Br 最大 ~1.0 in training）
+        delta_M_score = torch.clamp(thermo["delta_M"] / 1.0, 0.0, 1.0)
+
+        # kappa normalize：30–200 W/mK 有效區間
+        kappa_score = torch.clamp((kappa - 30.0) / 170.0, 0.0, 1.0)
+
+        strength_score = torch.where(
+            st >= self.min_strength,
+            torch.ones_like(st),
+            torch.exp((st - self.min_strength) / 80.0),
+        )
+
+        w_tc, w_dM, w_k, w_st, w_win = self.tm_weights
+        F_base = (
+            w_tc  * tc_hit
+            + w_dM  * delta_M_score
+            + w_k   * kappa_score
+            + w_st  * strength_score
+            + w_win * thermo["tc_window_score"]
+        )
+
+        if self.enable_chemistry_constraints:
+            F_base = F_base * self._chemistry_penalty(pop)
+
+        return F_base, {
+            "tc":             tc_K,
+            "hc":             hc,
+            "br":             br,
+            "strength":       st,
+            "tc_std":         torch.zeros_like(tc_K),
+            "kappa":          kappa,
+            "delta_M":        thermo["delta_M"],
+            "M_at_low":       thermo["M_at_low"],
+            "M_at_high":      thermo["M_at_high"],
+            "tc_window_score": thermo["tc_window_score"],
         }
-        return F_total, info
+
+    # ── 適應度（dispatch）─────────────────────────────────────────────────────
+    @torch.no_grad()
+    def fitness(
+        self, pop: torch.Tensor
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        if self.enable_uncertainty and self.predict_fn_uncertainty is not None:
+            preds_mc = self.predict_fn_uncertainty(pop, self.n_mc_samples)
+            preds = {
+                "Tc": preds_mc["Tc_mean"], "Hc": preds_mc["Hc_mean"],
+                "Br": preds_mc["Br_mean"], "strength": preds_mc["strength_mean"],
+            }
+            tc_std = preds_mc["Tc_std"]
+        else:
+            preds  = self.predict_fn(pop)
+            tc_std = None
+
+        if self.mode == "thermomagnetic":
+            return self._fitness_thermomagnetic(pop, preds)
+        else:
+            return self._fitness_softmag(pop, preds, tc_std)
 
     # ── 遺傳算子 ──────────────────────────────────────────────────────────────
     def _tournament_select(
@@ -281,6 +368,9 @@ class GPUGeneticAlgorithm:
         self.history["best_hc"].append(info["hc"][bi].item())
         self.history["best_br"].append(info["br"][bi].item())
         self.history["best_tc_std"].append(info["tc_std"][bi].item())
+        if "delta_M" in info:
+            self.history["best_delta_M"].append(info["delta_M"][bi].item())
+            self.history["best_kappa"].append(info["kappa"][bi].item())
         return fit, info
 
     # ── 主迴圈 ────────────────────────────────────────────────────────────────
