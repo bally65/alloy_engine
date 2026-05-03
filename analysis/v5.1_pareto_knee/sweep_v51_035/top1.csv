@@ -1,0 +1,2 @@
+threshold,tag,top_fit,actual_delta_M,tc_C,tc_offset,hc,br_T,kappa,strength_MPa,Fe,Ni,Co,Cr,Cu,Mn,comp_str,elapsed_s,reached
+0.35,sweep_v51_035,0.7796,0.5074,362.3,12.3,152.2,1.968,91.3,504.0,43.1,0.0,30.2,18.9,0.0,0.0,Fe43.1-Co30.2-Cr18.9-Si5.4-V2.3,0.6,True
