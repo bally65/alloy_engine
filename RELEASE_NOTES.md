@@ -1,5 +1,39 @@
 # Release Notes
 
+## Analysis: delta_M Boundary (Mid-temp 350°C scenario)
+
+**Date**: 2026-05-03  
+**Method**: 7-point threshold sweep (0.05 to 0.40 T), 50,000 × 100 generations per sweep  
+**Branch**: merged from `analysis/delta_m_boundary`
+
+### Key Findings
+
+1. **Model boundary: delta_M = 0.232 T** (Fe83-Cr16 near-binary, thr=0.30). Above this, the GA cannot improve regardless of threshold — thr=0.40 T is physically unreachable within the current element set and surrogate.
+
+2. **Real limitation is Br surrogate underestimation, not physics.** The surrogate systematically under-predicts Br by 0.3–1.6 T vs. literature (MODEL_CARD §3.2). Real Fe-Cr/Fe-Ni alloys achieve delta_M > 0.5 T; recalibrating the Br model is the highest-leverage improvement for v5.1.
+
+3. **Pareto knee confirmed at 0.20 T.** Raising threshold from 0.20 → 0.25 T costs −27% fitness for only +12% delta_M. The v5.0 baseline of 0.20 T is post-hoc validated as the Pareto-optimal operating point.
+
+4. **Soft constraint floor ≈ 0.20 T.** At thr=0.15, the GA found a solution with delta_M=0.140 T (below threshold) — the quadratic penalty was insufficient to enforce compliance. At 0.20 T and above, the constraint is reliably binding.
+
+### Composition Evolution Pattern
+
+As threshold increases, the GA systematically purges non-magnetic elements (Cu, Si, Ni) and converges toward binary Fe-Cr. Co is almost never used (max 3%) because it over-shoots Tc. The GA independently rediscovers the engineering principle that Fe-Cr binary alloys maximize remanence at a given Tc.
+
+### Implications for v5.1
+
+To increase achievable delta_M:
+- **Do not** expand GA search (already explores full composition space)
+- **Do not** relax the 0.20 T threshold (Pareto knee is there)
+- **Do** calibrate Br surrogate with literature values (Permalloy 0.70 T, Hiperco 2.40 T)
+- **Consider** Co+Mn element pairing: Co raises Tc, Mn lowers it — together they could allow high Fe content with precise Tc targeting, potentially reaching delta_M > 0.30 T
+
+### Files
+
+See `analysis/delta_m_boundary/` for full data, 7-sweep CSVs, trade-off table, and figures.
+
+---
+
 ## v5.0 — Direct Thermodynamic Quantities
 
 **Released**: 2026-05-03  
