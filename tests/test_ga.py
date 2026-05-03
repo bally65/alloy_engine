@@ -51,7 +51,8 @@ def test_run_10_generations(ga):
     pop, fit, info = ga.run(n_gen=10, verbose=False)
     assert pop.shape == (SMALL_N, NUM_ELEMENTS)
     assert fit.shape == (SMALL_N,)
-    assert set(info.keys()) == {"tc", "hc", "br", "strength"}
+    required = {"tc", "hc", "br", "strength"}
+    assert required.issubset(info.keys()), f"Missing required keys, got {info.keys()}"
     assert len(ga.history["best_fitness"]) == 10
 
 

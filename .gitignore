@@ -21,6 +21,7 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb_checkpoints
+alloy_discovery_engine.ipynb
 
 # 執行結果
 results/

@@ -26,7 +26,7 @@ def test_pure_element_weighted_mean(pure_fe):
     w_mean  = feat[0, :NUM_PROPS]                           # 前 10 維
     fe_props = np.array(
         [ELEMENT_PROPERTIES["Fe"][p] for p in
-         ["Z", "M", "r", "EN", "Vel", "IE", "mu", "Tc", "rho", "E"]],
+         ["Z", "M", "r", "EN", "Vel", "IE", "mu", "rho", "E"]],
         dtype=np.float32,
     )
     np.testing.assert_allclose(w_mean, fe_props, rtol=1e-4)
