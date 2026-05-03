@@ -394,3 +394,74 @@ python scripts/run_search.py --scenario all --population-size 100000 --n-generat
 ```
 
 All results deterministic at seed=42.
+
+---
+
+## 12. v5.0 Update — Direct Thermodynamic Quantities
+
+**Date:** 2026-05-03  
+**Change scope:** `alloy_engine/thermomagnetic/properties.py` (new functions), `GPUGeneticAlgorithm` fitness (thermomagnetic mode only). Surrogate architecture, features, and softmag mode unchanged.
+
+### New Physical Quantities
+
+| Quantity | Method | Unit | Calibration |
+|----------|--------|------|-------------|
+| **Cp specific heat** | Kopp-Neumann linear mixture | J/(kg·K) | Fe-Ni alloys ~440–480 J/(kg·K); ±5–10% accuracy |
+| **ΔS_M magnetic entropy** | R·ln(2S+1) × proximity × field_scaling | J/(kg·K) | Fe-Ni Permalloy @1T ≈ 3 J/(kg·K) (Tishin & Spichkin 2003) |
+| **Cycle frequency f** | α/(2L²), α = κ/(ρCp) | Hz | Fe-based alloys ~10–20 Hz at L=1mm |
+| **Hysteresis quality** | f / (1 + α_loss·Hc·Br·f) | Hz | Steinmetz penalty, α_loss=0.001 |
+
+### Fitness Upgrade: v4.1 → v5.0
+
+| Term | v4.1 weight | v5.0 weight | Change |
+|------|------------|------------|--------|
+| Tc hit score | 0.30 | **0.25** | reduced |
+| delta_M score | 0.30 | **0.20** | reduced |
+| **ΔS_M score** | — | **0.15** | new |
+| **Efficiency score** | — | **0.15** | new |
+| **Quality frequency** | — | **0.10** | new |
+| Tc window score | 0.20 | **0.10** | reduced |
+| Strength score | 0.10 | **0.05** | reduced (thin-sheet application) |
+| kappa score | 0.10 | 0 | deprecated (subsumed by efficiency) |
+
+### Score Calibration (empirically validated)
+
+| Score | Cap value | Physical anchor | Saturation rate (random pop) |
+|-------|-----------|----------------|------------------------------|
+| delta_S_score | 6.5 J/(kg·K) | Fe-based top alloys ≈ 4–6 J/(kg·K) | 0.3% |
+| efficiency_score | 0.04 (ΔS/Cp) | Gd-class: ΔS=10, Cp=240 → 0.042 | 0.0% |
+| freq_score | 15 Hz | Population p95 = 13.4 Hz | 2.7% |
+
+All three scores were validated with < 5% saturation in the random population and < 30% saturation in the Top-100 fitness subgroup.
+
+### Known Limitations (v5.0)
+
+1. **Mn μ=0 assumption**: `elements.py` assigns μ=0 to Mn (antiferromagnetic in bulk). For Mn > 10 at% alloys (e.g., Heusler compounds), ΔS_M will be underestimated. Conservative compositions (Mn < 8 at%) are unaffected.
+
+2. **L=1mm element size assumption**: Cycle frequency scales as f ∝ 1/L²; changing L from 1 mm to 0.5 mm multiplies f by 4×. The `L_meters` parameter in `GPUGeneticAlgorithm.__init__` allows sensitivity analysis.
+
+3. **Linear mixture Cp for Si > 10 at%**: Si has a lower Cp (~20 J/(mol·K)) than typical metals (~25 J/(mol·K)) due to covalent bonding. Compositions with Si > 10 at% will have Cp slightly overestimated. Typical alloy Si content (< 5 at%) makes this negligible.
+
+4. **field_scaling_1T = 0.05 is Fe-Ni calibrated**: This factor brings theoretical entropy (R·ln(2S+1)) to the field-driven value ≈ 3 J/(kg·K) for Fe-Ni Permalloy at 1T. For Gd or rare-earth alloys, field_scaling would be ~4× larger (ΔS_M ≈ 10 J/(kg·K)). The current element set (Fe/Ni/Co/Cr/Mn/Cu/Mo/Si/Al/V) is exclusively 3d transition metal, so this is appropriate.
+
+5. **No eddy current loss term**: Only Steinmetz hysteresis loss (f·Hc·Br) is included. At frequencies > 100 Hz, eddy current losses would dominate. The current 10–20 Hz operating range makes this acceptable.
+
+6. **Second-order phase transitions only**: ΔS_M proximity model assumes a Gaussian shape (Bean-Rodbell, σ=30K). First-order transitions (Fe-Rh, MnAs) have sharper peaks and are not in the Fe/Ni/Co composition space; this limitation does not affect current results.
+
+### v5.0 Validation — Three Thermal Scenarios (100K pop, 150 gen)
+
+| Scenario | Top-1 Composition | Tc | delta_M | delta_S_M | Cp | kappa | f | Fitness |
+|---|---|---|---|---|---|---|---|---|
+| 低溫廢熱_150C | Fe73.8-Cr23.8 | 157°C | 0.198 T | 7.16 J/(kg·K) | 449 J/(kg·K) | 84.1 W/mK | 12.2 Hz | 0.6945 |
+| 中溫廢熱_350C | Fe82.2-Cr15.8 | 365°C | 0.200 T | 6.94 J/(kg·K) | 450 J/(kg·K) | 84.0 W/mK | 12.1 Hz | 0.6976 |
+| 高溫廢熱_500C | Fe87.5-Cr8.0 | 517°C | 0.201 T | 6.84 J/(kg·K) | 449 J/(kg·K) | 80.0 W/mK | 11.4 Hz | 0.7063 |
+
+All three converge to Fe-Cr binary-like compositions — physically expected, as Cr tunes Tc across 150–600°C range while maintaining moderate Br. The delta_M ≈ 0.20 T floor constraint remains binding (same as v4.1), indicating the 0.20 T threshold is at the achievable ceiling for this element set without Co enrichment.
+
+### Reproducibility
+
+```bash
+git checkout v5.0
+python scripts/train_surrogate.py --n-samples 8000 --epochs 300 --seed 42
+python scripts/run_search.py --scenario all --population-size 100000 --n-generations 150 --mode thermomagnetic
+```

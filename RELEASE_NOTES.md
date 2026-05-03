@@ -1,5 +1,86 @@
 # Release Notes
 
+## v5.0 — Direct Thermodynamic Quantities
+
+**Released**: 2026-05-03  
+**Tag**: v5.0
+
+### Summary
+
+This release transitions from indirect proxies (delta_M as energy-output surrogate, kappa as efficiency proxy) to **direct thermodynamic quantities** for thermomagnetic engine evaluation. The GA fitness function now explicitly optimizes for Cp (heat capacity), ΔS_M (magnetic entropy change), and cycle frequency f — the three physical quantities that directly determine Curie-wheel engine efficiency and output power density.
+
+### Key New Physics
+
+| Quantity | Method | Calibration Reference |
+|---|---|---|
+| Cp specific heat | Kopp-Neumann linear mixture | Fe-Ni alloys ~440–480 J/(kg·K), ±5–10% |
+| ΔS_M magnetic entropy | R·ln(2S+1) × proximity × field_scale | Fe-Ni Permalloy @1T ≈ 3 J/(kg·K) (Tishin & Spichkin 2003) |
+| Cycle frequency f | α/(2L²) thermal diffusion | Fe-based alloys ~10–20 Hz at L=1mm |
+| Hysteresis loss | f×Hc×Br Steinmetz penalty | Industrial soft magnetic standards |
+
+### Fitness Redesign
+
+| Term | v4.1 | v5.0 |
+|------|------|------|
+| Tc hit | 0.30 | 0.25 |
+| delta_M | 0.30 | 0.20 |
+| **ΔS_M score** | — | **0.15** |
+| **Efficiency (ΔS/Cp)** | — | **0.15** |
+| **Quality frequency** | — | **0.10** |
+| Tc window | 0.20 | 0.10 |
+| Strength | 0.10 | 0.05 |
+| kappa | 0.10 | 0 (deprecated) |
+
+### Iteration History (transparent)
+
+This release required three calibration iterations before all fitness scores were healthy:
+
+- **v5.0-α**: Initial implementation. ΔS_M formula gave the **theoretical spin entropy bound** (R·ln(2S+1) ≈ 80–150 J/(kg·K) for Fe-rich alloys), not the field-driven practical value. Both delta_S_score and eff_score saturated to 1.0 for essentially all compositions — zero discrimination power.
+- **v5.0-β**: Added `field_scaling_1T=0.05` (Tishin 2003 calibration), bringing ΔS_M to ~4–6 J/(kg·K). eff_score still saturated because normalization cap (0.008) was too low relative to output range.
+- **v5.0-γ**: Raised efficiency cap to 0.04 (Gd-class anchor). Discovered freq_score was also broken — `cap=1000 Hz` caused 100% of population to have score < 0.05 (actual f_quality range: 4–22 Hz). Fixed freq cap to 15 Hz (population p95). Also tuned delta_S cap from 5.0 → 6.5 based on Top-100 saturation analysis (37% saturation at 5.0, within 30–50% → raise cap).
+
+Final health check (random population, N=5000):
+
+| Score | Saturation (>0.95) | Dead letter (<0.05) | Top-100 saturation |
+|-------|--------------------|--------------------|-------------------|
+| delta_S_score | 0.3% ✅ | 78% (expected*) | 17% ✅ |
+| eff_score | 0.0% ✅ | 83% (expected*) | 0% ✅ |
+| freq_score | 2.7% ✅ | 0% ✅ | 0% ✅ |
+
+*High dead-letter rates for delta_S and eff are **expected**: random compositions rarely have Tc near the 350°C target, so proximity ≈ 0 for most random samples. Within the GA's converged population, these scores provide meaningful discrimination.
+
+### Validation — Three Thermal Scenarios (100K pop, 150 gen)
+
+| Scenario | Top-1 Composition | Tc | delta_M | delta_S_M | f | Fitness |
+|---|---|---|---|---|---|---|
+| 低溫廢熱_150C | Fe73.8-Cr23.8-V0.7 | 157°C | 0.198 T | 7.16 J/(kg·K) | 12.2 Hz | 0.6945 |
+| 中溫廢熱_350C | Fe82.2-Cr15.8-Si1.0 | 365°C | 0.200 T | 6.94 J/(kg·K) | 12.1 Hz | 0.6976 |
+| 高溫廢熱_500C | Fe87.5-Cr8.0-Mn2.8 | 517°C | 0.201 T | 6.84 J/(kg·K) | 11.4 Hz | 0.7063 |
+
+All three converge to Fe-Cr binary-like compositions. Cr concentration systematically decreases as target Tc increases (23.8% → 15.8% → 8.0%), which is physically correct (Cr suppresses Tc). Fitness scores are lower than v4.1 (0.69–0.71 vs ~0.80) because the fitness space now covers seven independent objectives rather than five, making perfect scores harder to achieve.
+
+### Known Limitations
+
+1. **Mn μ=0**: ΔS_M underestimated for Mn > 10 at% alloys
+2. **L=1mm fixed assumption**: f ∝ 1/L² is highly sensitive; use `L_meters` parameter for sensitivity analysis
+3. **No eddy current loss**: Only Steinmetz hysteresis term; valid for f < 100 Hz
+4. **field_scaling=0.05 is Fe-Ni calibrated**: Not applicable to rare-earth alloys
+5. **Second-order transitions only**: First-order MCE materials (Fe-Rh, MnAs) not modeled
+
+### Backward Compatibility
+
+`mode='softmag'` behavior is **completely unchanged** from v3.x. All 14 tests pass.
+
+### Reproducibility
+
+```bash
+git checkout v5.0
+python scripts/train_surrogate.py --n-samples 8000 --epochs 300 --seed 42
+python scripts/run_search.py --scenario all --population-size 100000 --n-generations 150 --mode thermomagnetic
+```
+
+---
+
 ## v4.1 — Thermomagnetic Engine Edition (Calibrated)
 
 **Released**: 2026-05-02 (late evening)

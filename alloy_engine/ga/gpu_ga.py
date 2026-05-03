@@ -103,13 +103,19 @@ class GPUGeneticAlgorithm:
         uncertainty_weight:   float = 0.10,
         # ── thermomagnetic mode ───────────────────────────────────────────────
         mode:                 str   = "softmag",   # "softmag" | "thermomagnetic"
-        w_tc_tm:              float = 0.30,
-        w_delta_M:            float = 0.30,
-        w_kappa:              float = 0.10,
-        w_strength_tm:        float = 0.10,
-        w_tc_window:          float = 0.20,
+        w_tc_tm:              float = 0.25,        # v5.0: 0.30→0.25
+        w_delta_M:            float = 0.20,        # v5.0: 0.30→0.20
+        w_kappa:              float = 0.0,         # v5.0: 廢棄（用 efficiency 取代）
+        w_strength_tm:        float = 0.05,        # v5.0: 0.10→0.05（薄片應用）
+        w_tc_window:          float = 0.10,        # v5.0: 0.20→0.10
         delta_T_window:       float = 30.0,        # 循環半溫差 (K)
         min_strength_mpa_thermomagnetic: float = 150.0,
+        # ── v5.0 新增參數 ─────────────────────────────────────────────────────
+        w_delta_S:            float = 0.15,        # 磁熵變分數
+        w_efficiency:         float = 0.15,        # 熱效率分數
+        w_freq:               float = 0.10,        # 含磁滯品質頻率
+        L_meters:             float = 1e-3,        # 元件特徵長度 (C1 修改)
+        proximity_width_K:    float = 30.0,        # B2 修改：50K→30K
     ) -> None:
         self.predict_fn       = predict_fn
         self.device           = device
@@ -133,6 +139,11 @@ class GPUGeneticAlgorithm:
             self.min_strength = min_strength_mpa_thermomagnetic
             self.tm_weights   = (w_tc_tm, w_delta_M, w_kappa, w_strength_tm, w_tc_window)
             self.delta_T_window = delta_T_window
+            self.w_delta_S      = w_delta_S
+            self.w_efficiency   = w_efficiency
+            self.w_freq         = w_freq
+            self.L_meters       = L_meters
+            self.proximity_width_K = proximity_width_K
         else:
             self.min_strength = min_strength_mpa
             self.weights      = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
@@ -251,6 +262,11 @@ class GPUGeneticAlgorithm:
         from alloy_engine.thermomagnetic.properties import (
             thermal_conductivity_estimate,
             magnetic_thermodynamic_score,
+            cp_estimate_specific,
+            delta_s_m_estimate,
+            thermal_efficiency_score,
+            cycle_frequency_estimate,
+            quality_frequency_score,
         )
 
         tc_K = preds["Tc"]
@@ -271,12 +287,8 @@ class GPUGeneticAlgorithm:
                            / (2 * self.tc_tol ** 2))
 
         # delta_M normalize：基準 0.5 T（Permalloy 工業循環實測值）+ power 0.7 增敏
-        # delta_M=0.50→1.00, 0.30→0.69, 0.13→0.36
         delta_M_ratio = torch.clamp(thermo["delta_M"] / 0.5, 0.0, 1.0)
         delta_M_score = delta_M_ratio ** 0.7
-
-        # kappa normalize：50–130 W/mK 線性 cap（>130 不再加分，抑制 Cu 異常值）
-        kappa_score = torch.clamp((kappa - 50.0) / 80.0, 0.0, 1.0)
 
         strength_score = torch.where(
             st >= self.min_strength,
@@ -284,19 +296,42 @@ class GPUGeneticAlgorithm:
             torch.exp((st - self.min_strength) / 80.0),
         )
 
-        w_tc, w_dM, w_k, w_st, w_win = self.tm_weights
+        # ── v5.0 新增物理量 ───────────────────────────────────────────────────
+        cp_spec = cp_estimate_specific(pop)                           # J/(kg·K)
+        delta_S = delta_s_m_estimate(
+            pop, tc_K, self.target_tc_celsius, Ms=br,
+            proximity_width_K=self.proximity_width_K,
+            H_external_T=1.0,       # 典型 NdFeB 永磁場強
+            field_scaling_1T=0.05,  # Fe-Ni 系校準 (Tishin 2003)
+        )                                                              # J/(kg·K)
+
+        # ΔS_M normalize：6.5 J/(kg·K) 為 cap
+        # 校準：全族群高 fitness 子集飽和率 37%（30-50% 區間），5.0 太低故調高至 6.5
+        # 參考：Gd@1T ΔS_M≈10 J/(kg·K)，Fe 系優秀合金 ≈ 4-6 J/(kg·K)
+        delta_S_score = torch.clamp(delta_S / 6.5, 0.0, 1.0)
+
+        eff_score = thermal_efficiency_score(delta_S, cp_spec)
+
+        f_Hz      = cycle_frequency_estimate(pop, kappa, cp_spec, L_meters=self.L_meters)
+        f_quality = quality_frequency_score(f_Hz, Hc=hc, Br=br, alpha_loss=0.001)
+        # cap=15 Hz：基於全族群 f_quality 分布（p95=13.4 Hz，mean=9.6 Hz）
+        # 避免 cap=1000 導致全族群廢解（100% <0.05）
+        freq_score = torch.clamp(f_quality / 15.0, 0.0, 1.0)
+
+        w_tc, w_dM, _w_k, w_st, w_win = self.tm_weights
         F_base = (
-            w_tc  * tc_hit
-            + w_dM  * delta_M_score
-            + w_k   * kappa_score
-            + w_st  * strength_score
-            + w_win * thermo["tc_window_score"]
+            w_tc              * tc_hit
+            + w_dM            * delta_M_score
+            + self.w_delta_S  * delta_S_score
+            + self.w_efficiency * eff_score
+            + self.w_freq     * freq_score
+            + w_win           * thermo["tc_window_score"]
+            + w_st            * strength_score
         )
 
-        # 硬約束：delta_M < 0.20 T 視為熱磁應用不可用，嚴重懲罰
-        low_dM_mask = thermo["delta_M"] < 0.20
+        # 硬約束：delta_M < 0.20 T 視為熱磁應用不可用
         low_dM_penalty = torch.where(
-            low_dM_mask,
+            thermo["delta_M"] < 0.20,
             (thermo["delta_M"] / 0.20) ** 2,
             torch.ones_like(thermo["delta_M"]),
         )
@@ -306,15 +341,19 @@ class GPUGeneticAlgorithm:
             F_base = F_base * self._chemistry_penalty(pop)
 
         return F_base, {
-            "tc":             tc_K,
-            "hc":             hc,
-            "br":             br,
-            "strength":       st,
-            "tc_std":         torch.zeros_like(tc_K),
-            "kappa":          kappa,
-            "delta_M":        thermo["delta_M"],
-            "M_at_low":       thermo["M_at_low"],
-            "M_at_high":      thermo["M_at_high"],
+            "tc":              tc_K,
+            "hc":              hc,
+            "br":              br,
+            "strength":        st,
+            "tc_std":          torch.zeros_like(tc_K),
+            "kappa":           kappa,
+            "cp":              cp_spec,
+            "delta_M":         thermo["delta_M"],
+            "delta_S_M":       delta_S,
+            "cycle_frequency": f_Hz,
+            "quality_freq":    f_quality,
+            "M_at_low":        thermo["M_at_low"],
+            "M_at_high":       thermo["M_at_high"],
             "tc_window_score": thermo["tc_window_score"],
         }
 
@@ -389,6 +428,10 @@ class GPUGeneticAlgorithm:
         if "delta_M" in info:
             self.history["best_delta_M"].append(info["delta_M"][bi].item())
             self.history["best_kappa"].append(info["kappa"][bi].item())
+        if "delta_S_M" in info:
+            self.history["best_delta_S_M"].append(info["delta_S_M"][bi].item())
+            self.history["best_cp"].append(info["cp"][bi].item())
+            self.history["best_freq"].append(info["cycle_frequency"][bi].item())
         return fit, info
 
     # ── 主迴圈 ────────────────────────────────────────────────────────────────
