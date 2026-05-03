@@ -1,5 +1,55 @@
 # Release Notes
 
+## v5.1 — Br Surrogate Calibration
+
+**Released**: 2026-05-03  
+**Tag**: v5.1
+
+### Problem
+
+The v5.0 delta_M boundary analysis (see §Analysis below) identified Br surrogate systematic underestimation as the primary bottleneck. The old formula (`mag_moment × 0.4`) produced a training data ceiling of 1.07 T and a surrogate 3σ ceiling of 1.09 T. Hiperco50 was predicted at 0.80 T vs. literature 2.40 T — a −1.60 T error.
+
+### Fix
+
+Replaced the Br generation formula in `alloy_engine/data/synthetic.py` with per-element literature-calibrated contributions plus Fe-Co Slater-Pauling synergy term (Bozorth 1951, Cullity 2009):
+
+```
+br_base = Fe×1.40 + Ni×0.60 + Co×1.80
+fe_co_synergy = 0.80 × 4(fe·co)/(mag_frac² + ε)
+br = (br_base + fe_co_synergy) × U[0.88, 1.12]
+```
+
+### Results
+
+| Metric | v5.0 | v5.1 |
+|--------|------|------|
+| Hiperco50 Br prediction | 0.800 T | **2.353 T** (lit: 2.40 T) |
+| Surrogate 3σ ceiling | 1.09 T | **2.46 T** |
+| Br R² (synthetic) | 0.919 | **0.970** |
+| delta_M ceiling (thr=0.30) | 0.232 T | **~0.50 T** |
+| Top-1 composition at thr=0.30 | Fe83-Cr16 (binary) | **Fe44-Co27-Cr16** (Fe-Co-Cr ternary) |
+
+The delta_M ceiling more than doubled. GA compositions now exploit Fe-Co-Cr ternaries with ~27% Co for the Slater-Pauling Br synergy.
+
+### Unchanged
+
+- Surrogate architecture (PropertyMLP 36→128→128→64→1)
+- Tc, Hc, σy generation formulas
+- GA fitness function (7-term, weights unchanged from v5.0)
+- All CLI parameters
+
+### Famous Alloy Br Spot Check
+
+| Alloy | Pred Br (T) | Lit Br (T) |
+|-------|------------|-----------|
+| Permalloy Ni₈₀Fe₂₀ | 0.755 | 0.700 |
+| Hiperco50 Fe₅₀Co₅₀ | 2.353 | 2.400 |
+| Pure Co | 1.776 | 1.790 |
+| Pure Ni | 0.588 | 0.610 |
+| Fe-Co 70/30 | 2.192 | 2.300 |
+
+---
+
 ## Analysis: delta_M Boundary (Mid-temp 350°C scenario)
 
 **Date**: 2026-05-03  

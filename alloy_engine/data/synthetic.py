@@ -84,10 +84,16 @@ def physics_based_properties_batch(
     base_hc *= np.random.uniform(0.7, 1.3, n)
     hc = np.clip(base_hc, 1.0, 1000)
 
-    # ── Br (剩磁, T) ──────────────────────────────────────────────────────────
-    mag_moment = fe * 2.22 + ni * 0.61 + co * 1.72
-    br = mag_moment * 0.4 * np.random.uniform(0.8, 1.2, n)
-    br = np.clip(br, 0.01, 2.5)
+    # ── Br (剩磁, T) — v5.1 calibrated ──────────────────────────────────────
+    # Per-element Br contribution (T): Fe=1.40, Ni=0.60, Co=1.80 (Bozorth 1951, Cullity 2009)
+    # Old formula: mag_moment*0.4 → max 1.07 T (pure Fe), no Co synergy
+    BR_ELEM_CONTRIB = np.array([1.40, 0.60, 1.80, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    br_base = comp @ BR_ELEM_CONTRIB
+    mag_frac = fe + ni + co
+    # Fe-Co Slater-Pauling synergy: Hiperco50 Br=2.40T >> linear pred 1.60T
+    fe_co_synergy_br = 0.80 * 4.0 * (fe * co) / (mag_frac ** 2 + 1e-6)
+    br = (br_base + fe_co_synergy_br) * np.random.uniform(0.88, 1.12, n)
+    br = np.clip(br, 0.01, 2.6)
 
     # ── σy (降伏強度, MPa)：固溶強化模型 ─────────────────────────────────────
     base_str      = 250 + 100 * fe
