@@ -68,6 +68,8 @@ def parse_args() -> argparse.Namespace:
                    help="MC Dropout 取樣次數（--enable-uncertainty 時生效）")
     p.add_argument("--uncertainty-weight",       type=float, default=0.10,
                    help="Uncertainty penalty 最大佔 fitness 比例（預設 0.10）")
+    p.add_argument("--min-delta-m-threshold",    type=float, default=0.20,
+                   help="delta_M 硬約束下限 (sweep 分析用，預設 0.20)")
     return p.parse_args()
 
 
@@ -117,6 +119,7 @@ def main() -> None:
             n_mc_samples=args.n_mc_samples,
             uncertainty_weight=args.uncertainty_weight,
             mode=args.mode,
+            min_delta_m_threshold=args.min_delta_m_threshold,
             **cfg,
         )
         t0 = time.time()

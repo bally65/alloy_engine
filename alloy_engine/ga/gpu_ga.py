@@ -116,6 +116,8 @@ class GPUGeneticAlgorithm:
         w_freq:               float = 0.10,        # 含磁滯品質頻率
         L_meters:             float = 1e-3,        # 元件特徵長度 (C1 修改)
         proximity_width_K:    float = 30.0,        # B2 修改：50K→30K
+        # ── analysis flag ─────────────────────────────────────────────────
+        min_delta_m_threshold: float = 0.20,       # delta_M 硬約束下限 (sweep 用)
     ) -> None:
         self.predict_fn       = predict_fn
         self.device           = device
@@ -144,6 +146,7 @@ class GPUGeneticAlgorithm:
             self.w_freq         = w_freq
             self.L_meters       = L_meters
             self.proximity_width_K = proximity_width_K
+            self.min_delta_m_threshold = min_delta_m_threshold
         else:
             self.min_strength = min_strength_mpa
             self.weights      = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
@@ -329,10 +332,11 @@ class GPUGeneticAlgorithm:
             + w_st            * strength_score
         )
 
-        # 硬約束：delta_M < 0.20 T 視為熱磁應用不可用
+        # 硬約束：delta_M < min_delta_m_threshold 視為熱磁應用不可用
+        thr = self.min_delta_m_threshold
         low_dM_penalty = torch.where(
-            thermo["delta_M"] < 0.20,
-            (thermo["delta_M"] / 0.20) ** 2,
+            thermo["delta_M"] < thr,
+            (thermo["delta_M"] / (thr + 1e-6)) ** 2,
             torch.ones_like(thermo["delta_M"]),
         )
         F_base = F_base * low_dM_penalty
