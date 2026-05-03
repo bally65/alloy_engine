@@ -103,6 +103,61 @@ The flat fitness plateau (0.25–0.45 T) indicates that the surrogate's 7-term f
 
 ---
 
+## Figures
+
+### Figure 1 — Pareto Shift: v5.0 vs v5.1
+
+![Pareto Shift](figures/fig_pareto_shift.png)
+
+This figure overlays the Fitness vs. Actual delta_M curves for both engine versions.
+
+**Reading guide:**
+- **Grey dashed line (v5.0):** Fitness plummets immediately above 0.20 T (−27% per step). Physical ceiling at 0.232 T.
+- **Blue solid line (v5.1):** Fitness is flat across the 0.25–0.45 T plateau (−0.12% total). Physical ceiling at ~0.50 T.
+- **Green arrow:** The net gain from v5.0 Knee → v5.1 Knee: +125% delta_M and +12% absolute fitness, simultaneously.
+
+The gap between the two curves represents the gain unlocked by the Br Slater-Pauling calibration — not by changing the search algorithm or fitness function.
+
+---
+
+### Figure 2 — Co Emergence: GA Discovers Slater-Pauling Basin
+
+![Co Emergence](figures/fig_co_emergence.png)
+
+This figure shows how element composition evolves as threshold increases, with fitness overlaid on the right axis.
+
+**Reading guide:**
+- **Red line (Co at%):** Co saturates at ~30% in all cases. The GA independently rediscovers the Slater-Pauling Fe-Co synergy window (28–36% Co in Fe-Co base) across all threshold values — this is an emergent property, not a hard constraint.
+- **Blue line (Fe at%):** Fe stabilizes around 40–45 at% (vs. 82–83% in v5.0 — a fundamental composition shift).
+- **Green line (Cr at%):** Cr hovers at 12–20 at%, preserving its Tc-tuning role.
+- **Grey reference line at 3%:** The v5.0 plateau Co level; Co was almost never chosen because the old Br formula gave no reward for it.
+- **Purple diamond line:** Fitness remains flat until thr=0.50 T, confirming the Pareto knee is at 0.45 T.
+
+**Emergence interpretation:** The GA was never instructed to use Co. The Br formula update changed the reward landscape, and Co emerged organically at 29–31% in every run — precisely at the Slater-Pauling magnetic moment peak. This is a physics-consistent self-organization result.
+
+---
+
+## Summary: v5.0 → v5.1 Landscape Transformation
+
+| Metric | v5.0 | v5.1 | Improvement |
+|--------|------|------|-------------|
+| Physical ceiling (delta_M) | 0.232 T | **~0.50 T** | +116% |
+| Pareto Knee threshold | 0.20 T | **0.45 T** | +125% |
+| Fitness at Knee | 0.695 | **0.779** | +12% |
+| Fitness penalty to reach knee | steep cliff | **~0% (flat plateau)** | eliminated |
+| Dominant composition | Fe₈₃Cr₁₇ (binary) | **Fe₄₅Co₂₉Cr₁₉** (ternary) | new basin |
+| Co usage | ~3% (incidental) | **29–31% (emergent)** | Slater-Pauling activated |
+
+The calibration of the Br surrogate (a single formula change in `synthetic.py`) produced a cascade effect: the surrogate learned a new high-Br region, the GA found Fe-Co-Cr ternaries, and the Pareto front shifted from 0.20 T to 0.45 T — all without touching the fitness function or GA parameters.
+
+---
+
+## Recommended Action for v5.2
+
+Set `--min-delta-m-threshold 0.45` as the new operational default for formal thermomagnetic screening. This gives maximum delta_M (≈0.485 T) at peak fitness (0.779) with no trade-off penalty.
+
+---
+
 ## Files
 
 | File | Description |
@@ -110,6 +165,9 @@ The flat fitness plateau (0.25–0.45 T) indicates that the surrogate's 7-term f
 | `sweep_summary.csv` | All 6 threshold results (raw data) |
 | `sweep_v51_025/top1.csv` through `sweep_v51_050/top1.csv` | Per-sweep detailed output |
 | `run_sweep.py` | Reproducer script |
+| `plot_pareto_analysis.py` | Figure generation script |
+| `figures/fig_pareto_shift.png` | Figure 1: Pareto frontier comparison v5.0 vs v5.1 |
+| `figures/fig_co_emergence.png` | Figure 2: Co emergence + Slater-Pauling basin |
 
 ---
 
