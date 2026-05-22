@@ -15,3 +15,10 @@ from .cleaning import (
     nozzle_impact_force,
     design_cleaning_system,
 )
+from .chemistry import (
+    noyes_whitney_dissolution,
+    surface_forces,
+    recommend_cleaner,
+    CONTAMINATION_DB,
+    CLEANER_DB,
+)

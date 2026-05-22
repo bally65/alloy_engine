@@ -11,6 +11,7 @@
 | `$pressure` | 管路壓損、噴嘴前可用壓力、閥門選型 | `pressure/SKILL.md` |
 | `$cleaning` | 冷氣蒸發器/冷凝器清潔方案設計 | `cleaning/SKILL.md` |
 | `$design_assist` | 自然語言 → 完整 HVAC 清潔設計報告 | `design_assist/SKILL.md` |
+| `$chem_cleaning` | 污垢溶解動力學、表面張力/剪切力、清潔劑推薦 | `chem_cleaning/SKILL.md` |
 
 ## 共用計算模組
 
