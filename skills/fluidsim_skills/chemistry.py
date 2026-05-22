@@ -52,21 +52,23 @@ CONTAMINATION_DB = {
 }
 
 # ─── 清潔劑資料庫 ──────────────────────────────────────────
+# cmc_pct: 臨界微胞濃度 (% v/v)，各界面活性劑差異極大，不可共用單一值
 CLEANER_DB = {
     'alkaline_mild': {
         'name': '弱鹼性清潔劑（pH 9-10）',
         'ph': 9.5,
         'type': 'alkaline',
         'active_ingredient': '碳酸鈉 / 椰子油皂基',
-        'surface_tension_reduction': 28,   # mN/m（相對純水 72.8 mN/m）
+        'surface_tension_reduction': 28,   # mN/m（相對純水 72.8 mN/m，在 CMC 以上）
         'contact_angle_water_deg': 15,
+        'cmc_pct': 0.25,                   # 皂基類 CMC 約 0.2~0.4%
         'solubility_boost': {'grease_light': 3.0, 'grease_heavy': 5.0, 'dust_general': 2.0},
         'safe_on_aluminum': True,
         'safe_on_copper': True,
         'rinse_required': True,
-        'recommended_conc_pct': (1.0, 3.0),   # % v/v
+        'recommended_conc_pct': (1.0, 3.0),
         'contact_time_min': (3, 10),
-        'cost_level': 1,  # 1=低, 2=中, 3=高
+        'cost_level': 1,
     },
     'alkaline_strong': {
         'name': '強鹼清潔劑（pH 12-13）',
@@ -75,8 +77,9 @@ CLEANER_DB = {
         'active_ingredient': '氫氧化鉀 / 界面活性劑',
         'surface_tension_reduction': 35,
         'contact_angle_water_deg': 8,
+        'cmc_pct': 0.15,
         'solubility_boost': {'grease_light': 8.0, 'grease_heavy': 15.0, 'dust_general': 3.0},
-        'safe_on_aluminum': False,  # 強鹼會腐蝕鋁
+        'safe_on_aluminum': False,
         'safe_on_copper': True,
         'rinse_required': True,
         'recommended_conc_pct': (0.5, 2.0),
@@ -90,6 +93,7 @@ CLEANER_DB = {
         'active_ingredient': '非離子界面活性劑 (APG / AEO)',
         'surface_tension_reduction': 40,
         'contact_angle_water_deg': 5,
+        'cmc_pct': 0.05,                   # 非離子界面活性劑 CMC 較低，約 0.01~0.1%
         'solubility_boost': {'dust_general': 4.0, 'biofilm': 3.0, 'grease_light': 2.5},
         'safe_on_aluminum': True,
         'safe_on_copper': True,
@@ -105,9 +109,10 @@ CLEANER_DB = {
         'active_ingredient': '檸檬酸 / 草酸',
         'surface_tension_reduction': 15,
         'contact_angle_water_deg': 20,
+        'cmc_pct': 0.5,                    # 有機酸本身無明顯 CMC，設較大值使線性段延伸
         'solubility_boost': {'mineral_scale': 20.0, 'dust_general': 1.5},
         'safe_on_aluminum': True,
-        'safe_on_copper': False,  # 弱酸會氧化銅
+        'safe_on_copper': False,
         'rinse_required': True,
         'recommended_conc_pct': (2.0, 5.0),
         'contact_time_min': (5, 20),
@@ -120,6 +125,7 @@ CLEANER_DB = {
         'active_ingredient': '季銨鹽 / 過氧化氫',
         'surface_tension_reduction': 20,
         'contact_angle_water_deg': 18,
+        'cmc_pct': 0.20,                   # 季銨鹽 CMC 約 0.1~0.3%
         'solubility_boost': {'biofilm': 10.0, 'dust_general': 1.5},
         'safe_on_aluminum': True,
         'safe_on_copper': True,
@@ -169,6 +175,19 @@ class ChemCleaningReport:
     alternatives: List[str] = field(default_factory=list)
 
 
+# ─── 各污垢在「無清潔劑純水」下的基礎溶解特徵時間（秒）───────
+# 定義：純水接觸下達到 63% 溶解分率所需時間（即 1/k₀）。
+# 由此校準的 k₀ 使接觸時間（分鐘量級）對溶解分率有顯著影響。
+# 清潔劑的 solubility_boost 倍率會縮短此時間。
+_BASE_DISSOLUTION_TIME_S = {
+    'dust_general':   600,   # 純水 ~10 min，灰塵主要靠機械力
+    'grease_light':  1800,   # 純水 ~30 min，油污疏水不溶於水
+    'grease_heavy':  7200,   # 純水 ~120 min，重油脂
+    'biofilm':       3600,   # 純水 ~60 min，生物膜結構緊密
+    'mineral_scale': 9999,   # 純水幾乎不溶，需酸性清潔劑
+}
+
+
 def noyes_whitney_dissolution(
     contamination_key: str,
     contact_time_min: float,
@@ -177,36 +196,42 @@ def noyes_whitney_dissolution(
     temperature_C: float = 25.0,
 ) -> DissolutionResult:
     """
-    Noyes-Whitney 方程式計算溶解分率。
-    dC/dt = (D·A) / (h·V) · (Cs - C)
+    Noyes-Whitney 一階溶解動力學模型。
 
-    溶解分率隨時間：f(t) = 1 - exp(-k·t)
-    其中 k 受溫度（Arrhenius）、清潔劑濃度、界面活性劑增效影響。
+    df/dt = k_eff × (1 - f)  →  f(t) = soluble_fraction × (1 - exp(-k_eff × t))
+
+    k_eff = k₀ × boost × conc_factor × temp_factor
+
+    其中：
+    - k₀ = 1 / BASE_DISSOLUTION_TIME_S  （校準至分鐘量級有意義）
+    - boost: 清潔劑對此污垢的增效倍率
+    - conc_factor: 濃度對數效應（Hill 型，以推薦濃度中值為基準）
+    - temp_factor: Arrhenius 溫度修正（Ea ≈ 50 kJ/mol for emulsification）
     """
     cont = CONTAMINATION_DB[contamination_key]
     cleaner = CLEANER_DB[cleaner_key]
 
-    D = cont['diffusion_coeff']  # 擴散係數
-    h = cont['layer_thickness_um'] * 1e-6  # 擴散層厚度 m
+    # 基礎速率常數（已校準至現實清潔時間）
+    k0 = 1.0 / _BASE_DISSOLUTION_TIME_S[contamination_key]
 
-    # 基礎速率常數 k = D / h² （量綱：1/s）
-    k_base = D / (h ** 2)
-
-    # 溫度修正（Arrhenius，Ea ≈ 40 kJ/mol）
-    Ea = 40000  # J/mol
+    # 溫度修正（Arrhenius）
+    Ea = 50000  # J/mol，皂化/乳化反應活化能
     R = 8.314
-    T_ref = 298.15
-    T = temperature_C + 273.15
-    k_temp = k_base * math.exp(-Ea / R * (1/T - 1/T_ref))
+    T_ref = 298.15  # 25°C
+    T_K = temperature_C + 273.15
+    temp_factor = math.exp(-Ea / R * (1.0 / T_K - 1.0 / T_ref))
 
-    # 清潔劑增效（濃度效應 + 種類效應）
+    # 清潔劑種類增效
     boost = cleaner['solubility_boost'].get(contamination_key, 1.0)
-    conc_factor = math.log1p(concentration_pct) / math.log1p(2.0)  # 以 2% 為基準歸一
-    k_effective = k_temp * boost * conc_factor
 
-    # 溶解分率 f = soluble_fraction × (1 - exp(-k·t))
+    # 濃度效應：對數型（飽和於高濃度），以推薦濃度中值歸一
+    conc_ref = sum(cleaner['recommended_conc_pct']) / 2
+    conc_factor = math.log1p(concentration_pct) / math.log1p(conc_ref)
+
+    k_eff = k0 * boost * conc_factor * temp_factor
+
     t_s = contact_time_min * 60
-    f = cont['soluble_fraction'] * (1 - math.exp(-k_effective * t_s))
+    f = cont['soluble_fraction'] * (1.0 - math.exp(-k_eff * t_s))
 
     return DissolutionResult(
         contamination_type=cont['name'],
@@ -214,7 +239,7 @@ def noyes_whitney_dissolution(
         concentration_pct=concentration_pct,
         contact_time_min=contact_time_min,
         dissolved_fraction=f,
-        remaining_mass_pct=(1 - f) * 100,
+        remaining_mass_pct=(1.0 - f) * 100.0,
         effective=f >= 0.7,
     )
 
@@ -233,32 +258,36 @@ def surface_forces(
     - 滑動力
     """
     cleaner = CLEANER_DB[cleaner_key]
-    water_surface_tension = 72.8  # mN/m @ 20°C
+    gamma_water = 72.8  # mN/m @ 20°C
 
-    # 表面張力（隨濃度對數下降，達 CMC 後趨於平坦）
-    cmc_pct = 0.3  # 假設 CMC 約 0.3%
+    # 表面張力：使用各清潔劑自身的 CMC（不再共用 0.3%）
+    cmc_pct = cleaner['cmc_pct']
     if concentration_pct <= cmc_pct:
+        # CMC 以下：線性下降
         reduction = cleaner['surface_tension_reduction'] * (concentration_pct / cmc_pct)
     else:
-        reduction = cleaner['surface_tension_reduction']
-    gamma_liquid = max(water_surface_tension - reduction, 25.0)  # 最低 25 mN/m
+        # CMC 以上：趨於平坦（對數微調）
+        reduction = cleaner['surface_tension_reduction'] * (
+            1.0 + 0.05 * math.log(concentration_pct / cmc_pct)
+        )
+    gamma_liquid = max(gamma_water - reduction, 25.0)
 
-    # 接觸角（加入濃度影響）
-    contact_angle = cleaner['contact_angle_water_deg'] * math.sqrt(cmc_pct / max(concentration_pct, cmc_pct))
-    contact_angle = max(contact_angle, 2.0)
+    # 接觸角：CMC 以上幾乎不再降低，與濃度的依賴同樣飽和
+    scale = min(concentration_pct / cmc_pct, 1.0) ** 0.5
+    contact_angle = max(cleaner['contact_angle_water_deg'] * (1.0 - 0.5 * scale), 2.0)
 
-    # 鋪展係數 S（正值代表可自發鋪展）
-    gamma_solid_air = 45.0  # 鋁翅片 mN/m（典型值）
-    gamma_solid_liquid = gamma_liquid * math.cos(math.radians(contact_angle))
-    spreading = gamma_solid_air - gamma_liquid - (gamma_solid_liquid * 0.1)
+    # 鋪展係數（Young 方程式）：S = γ_LG × (cos θ − 1)
+    # S ≤ 0 恆成立；θ→0 時 S→0（自發鋪展臨界）。
+    # 報告 cos θ 作為「可潤濕性指數」（1 = 完全潤濕，-1 = 完全不潤濕）
+    spreading = gamma_liquid * (math.cos(math.radians(contact_angle)) - 1.0)
 
-    # 剪切應力（翅片縫隙 Couette 流：τ = μ·V/d）
-    mu_water = 1.0e-3   # Pa·s（近似，清潔液黏度略高但忽略）
+    # 翅片縫隙剪切應力：Couette 流 τ = μ·V/d
+    mu_water = 1.0e-3  # Pa·s @ 20°C
     gap = fin_spacing_mm / 1000
     shear_stress = mu_water * shear_velocity / gap
 
-    # 滑動力（單位面積）= 剪切應力 + 浮力輔助（簡化）
-    sliding_force = shear_stress * 1.2  # 1.2 倍修正（表面張力梯度貢獻）
+    # 滑動力（剪切應力作用於污垢底面）
+    sliding_force = shear_stress
 
     return SurfaceForceResult(
         surface_tension_mN=gamma_liquid,

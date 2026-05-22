@@ -127,29 +127,36 @@ def design_cleaning_system(
     warnings = []
     pipe_d = pipe_diameter_mm / 1000
 
-    # 先用中等孔徑估算流量，計算管路壓損
-    initial_nozzle_d = 2.0  # mm，初始估算
-    initial_Q = nozzle_flowrate(supply_pressure_bar * 0.8, initial_nozzle_d)
-
-    nozzle_p = available_nozzle_pressure(
-        supply_pressure_bar=supply_pressure_bar,
-        pipe_diameter=pipe_d,
-        pipe_length=pipe_length_m,
-        flowrate_lpm=initial_Q,
-        temperature_C=temperature_C,
-    )
-    pipe_loss = supply_pressure_bar - nozzle_p
-
-    # 根據可用壓力選擇噴嘴孔徑
-    if nozzle_p < 1.5:
-        warnings.append(f"警告：噴嘴前壓力僅 {nozzle_p:.1f} bar，清潔效果可能不足（建議 ≥ 2 bar）")
+    # 根據供應壓力初選噴嘴孔徑
+    if supply_pressure_bar < 1.5:
         orifice_d = 1.2
-    elif nozzle_p < 3.0:
+    elif supply_pressure_bar < 3.0:
         orifice_d = 1.5
-    elif nozzle_p < 6.0:
+    elif supply_pressure_bar < 6.0:
         orifice_d = 2.0
     else:
         orifice_d = 2.5
+
+    # 迭代求解壓力-流量耦合平衡：
+    # Q 影響管路壓損 → 改變噴嘴前壓 → 改變 Q，需收斂至一致解。
+    nozzle_p = supply_pressure_bar * 0.9  # 初始猜值
+    for _ in range(15):
+        Q = nozzle_flowrate(nozzle_p, orifice_d)
+        new_nozzle_p = available_nozzle_pressure(
+            supply_pressure_bar=supply_pressure_bar,
+            pipe_diameter=pipe_d,
+            pipe_length=pipe_length_m,
+            flowrate_lpm=Q,
+            temperature_C=temperature_C,
+        )
+        if abs(new_nozzle_p - nozzle_p) < 1e-4:  # bar，收斂條件
+            break
+        nozzle_p = new_nozzle_p
+
+    pipe_loss = supply_pressure_bar - nozzle_p
+
+    if nozzle_p < 1.5:
+        warnings.append(f"警告：噴嘴前壓力僅 {nozzle_p:.2f} bar，清潔效果可能不足（建議 ≥ 2 bar）")
 
     nozzle = nozzle_impact_force(
         pressure_bar=nozzle_p,
