@@ -5,12 +5,14 @@ Skills 計算模組單元測試
 import math
 import sys
 import os
+import warnings
+import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from skills.fluidsim_skills.fluid import water_properties, reynolds_number, flow_regime, flowrate_to_velocity
 from skills.fluidsim_skills.pressure import pressure_drop, friction_factor
 from skills.fluidsim_skills.cleaning import nozzle_flowrate, nozzle_impact_force
-from skills.fluidsim_skills.chemistry import noyes_whitney_dissolution, surface_forces, CLEANER_DB
+from skills.fluidsim_skills.chemistry import noyes_whitney_dissolution, surface_forces, CLEANER_DB, CONTAMINATION_DB
 
 
 # ─── fluid.py 測試 ───────────────────────────────────────────
@@ -190,6 +192,142 @@ class TestSurfaceForces:
         assert result.shear_stress_Pa > 0
 
 
+# ─── 邊界條件與錯誤處理測試 ─────────────────────────────────
+
+class TestInputValidation:
+    """確認非法輸入會拋出 ValueError，而非靜默產生錯誤結果。"""
+
+    def test_friction_factor_zero_re(self):
+        with pytest.raises(ValueError):
+            friction_factor(0)
+
+    def test_friction_factor_negative_re(self):
+        with pytest.raises(ValueError):
+            friction_factor(-100)
+
+    def test_pressure_drop_zero_diameter(self):
+        with pytest.raises(ValueError):
+            pressure_drop(diameter=0, length=3, flowrate_lpm=10)
+
+    def test_pressure_drop_negative_diameter(self):
+        with pytest.raises(ValueError):
+            pressure_drop(diameter=-0.01, length=3, flowrate_lpm=10)
+
+    def test_pressure_drop_negative_flowrate(self):
+        with pytest.raises(ValueError):
+            pressure_drop(diameter=0.01, length=3, flowrate_lpm=-5)
+
+    def test_pressure_drop_negative_length(self):
+        with pytest.raises(ValueError):
+            pressure_drop(diameter=0.01, length=-1, flowrate_lpm=10)
+
+    def test_nozzle_flowrate_negative_pressure(self):
+        with pytest.raises(ValueError):
+            nozzle_flowrate(-1.0, 2.0)
+
+    def test_nozzle_flowrate_zero_diameter(self):
+        with pytest.raises(ValueError):
+            nozzle_flowrate(3.0, 0.0)
+
+    def test_nozzle_impact_negative_pressure(self):
+        with pytest.raises(ValueError):
+            nozzle_impact_force(-1.0, 2.0)
+
+    def test_nozzle_impact_spray_angle_too_large(self):
+        with pytest.raises(ValueError):
+            nozzle_impact_force(3.0, 2.0, spray_angle_deg=180)
+
+    def test_nozzle_impact_spray_angle_zero(self):
+        with pytest.raises(ValueError):
+            nozzle_impact_force(3.0, 2.0, spray_angle_deg=0)
+
+    def test_nozzle_impact_negative_distance(self):
+        with pytest.raises(ValueError):
+            nozzle_impact_force(3.0, 2.0, distance_mm=-10)
+
+    def test_reynolds_zero_diameter(self):
+        with pytest.raises(ValueError):
+            reynolds_number(0, 1.0, 1e-6)
+
+    def test_reynolds_negative_velocity(self):
+        with pytest.raises(ValueError):
+            reynolds_number(0.01, -1.0, 1e-6)
+
+    def test_flow_regime_negative_re(self):
+        with pytest.raises(ValueError):
+            flow_regime(-1)
+
+
+class TestBoundaryValues:
+    """邊界值行為測試。"""
+
+    def test_flow_regime_re_4000_is_transitional(self):
+        # Re=4000 應屬過渡流（含邊界，符合 ASHRAE 標準）
+        assert flow_regime(4000) == 'transitional'
+
+    def test_flow_regime_re_2300_is_transitional(self):
+        assert flow_regime(2300) == 'transitional'
+
+    def test_flow_regime_re_2299_is_laminar(self):
+        assert flow_regime(2299) == 'laminar'
+
+    def test_flow_regime_re_4001_is_turbulent(self):
+        assert flow_regime(4001) == 'turbulent'
+
+    def test_nozzle_zero_pressure_returns_zero(self):
+        Q = nozzle_flowrate(0.0, 2.0)
+        assert Q == 0.0
+
+    def test_nozzle_impact_zero_pressure_returns_zeros(self):
+        r = nozzle_impact_force(0.0, 2.0)
+        assert r.flowrate_lpm == 0.0
+        assert r.impact_force_N == 0.0
+
+    def test_pressure_drop_zero_flowrate(self):
+        result = pressure_drop(0.01, 3.0, 0.0)
+        assert result.total_loss_pa == 0.0
+
+    def test_water_properties_out_of_range_warns(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            water_properties(-10)
+            assert len(w) == 1
+            assert issubclass(w[0].category, UserWarning)
+
+    def test_water_properties_clamped_silently_correct(self):
+        # 超出範圍後截斷，結果應等同邊界值
+        props_boundary = water_properties(0)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            props_out = water_properties(-50)
+        assert props_out.density == pytest.approx(props_boundary.density, rel=1e-6)
+
+
+class TestSolubilityBoostCompleteness:
+    """確認所有清潔劑對所有污垢都有明確的增效值（無空缺）。"""
+
+    def test_all_combinations_defined(self):
+        contamination_keys = list(CONTAMINATION_DB.keys())
+        for cleaner_key, cleaner in CLEANER_DB.items():
+            for cont_key in contamination_keys:
+                boost = cleaner['solubility_boost'].get(cont_key)
+                assert boost is not None, (
+                    f"清潔劑 '{cleaner_key}' 對污垢 '{cont_key}' 缺少 solubility_boost 值"
+                )
+                assert boost > 0, (
+                    f"清潔劑 '{cleaner_key}' 對污垢 '{cont_key}' 的 boost={boost} 應 > 0"
+                )
+
+    def test_acid_beats_alkaline_on_mineral_scale(self):
+        r_acid = noyes_whitney_dissolution('mineral_scale', 15, 'acid_mild', 3.0)
+        r_alk  = noyes_whitney_dissolution('mineral_scale', 15, 'alkaline_mild', 2.0)
+        assert r_acid.dissolved_fraction > r_alk.dissolved_fraction
+
+    def test_disinfectant_best_for_biofilm(self):
+        r_dis  = noyes_whitney_dissolution('biofilm', 20, 'disinfectant', 1.0)
+        r_surf = noyes_whitney_dissolution('biofilm', 20, 'surfactant_neutral', 1.0)
+        assert r_dis.dissolved_fraction > r_surf.dissolved_fraction
+
+
 if __name__ == '__main__':
-    import pytest
     pytest.main([__file__, '-v'])

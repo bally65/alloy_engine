@@ -62,7 +62,13 @@ CLEANER_DB = {
         'surface_tension_reduction': 28,   # mN/m（相對純水 72.8 mN/m，在 CMC 以上）
         'contact_angle_water_deg': 15,
         'cmc_pct': 0.25,                   # 皂基類 CMC 約 0.2~0.4%
-        'solubility_boost': {'grease_light': 3.0, 'grease_heavy': 5.0, 'dust_general': 2.0},
+        'solubility_boost': {
+            'dust_general':  2.0,   # 弱鹼有效分散塵粒
+            'grease_light':  3.0,   # 皂化輕度油脂
+            'grease_heavy':  5.0,   # 皂化重油效果顯著
+            'biofilm':       1.5,   # 弱鹼對生物膜有輕度效果
+            'mineral_scale': 0.8,   # 鹼性對水垢無幫助（Ca/Mg 碳酸鹽在鹼性中更難溶）
+        },
         'safe_on_aluminum': True,
         'safe_on_copper': True,
         'rinse_required': True,
@@ -78,7 +84,13 @@ CLEANER_DB = {
         'surface_tension_reduction': 35,
         'contact_angle_water_deg': 8,
         'cmc_pct': 0.15,
-        'solubility_boost': {'grease_light': 8.0, 'grease_heavy': 15.0, 'dust_general': 3.0},
+        'solubility_boost': {
+            'dust_general':  3.0,    # 強鹼快速分散灰塵
+            'grease_light':  8.0,    # 強鹼皂化效果強
+            'grease_heavy':  15.0,   # 強鹼對重油脂最有效
+            'biofilm':       3.0,    # 強鹼破壞細胞膜
+            'mineral_scale': 0.5,    # 強鹼對水垢有反效果
+        },
         'safe_on_aluminum': False,
         'safe_on_copper': True,
         'rinse_required': True,
@@ -94,7 +106,13 @@ CLEANER_DB = {
         'surface_tension_reduction': 40,
         'contact_angle_water_deg': 5,
         'cmc_pct': 0.05,                   # 非離子界面活性劑 CMC 較低，約 0.01~0.1%
-        'solubility_boost': {'dust_general': 4.0, 'biofilm': 3.0, 'grease_light': 2.5},
+        'solubility_boost': {
+            'dust_general':  4.0,   # 非離子界面活性劑最擅長分散顆粒污垢
+            'grease_light':  2.5,   # 乳化輕度油脂
+            'grease_heavy':  2.0,   # 對重油脂效果有限（無皂化作用）
+            'biofilm':       3.0,   # 滲透生物膜結構
+            'mineral_scale': 1.0,   # 對水垢無特別效果
+        },
         'safe_on_aluminum': True,
         'safe_on_copper': True,
         'rinse_required': True,
@@ -110,7 +128,13 @@ CLEANER_DB = {
         'surface_tension_reduction': 15,
         'contact_angle_water_deg': 20,
         'cmc_pct': 0.5,                    # 有機酸本身無明顯 CMC，設較大值使線性段延伸
-        'solubility_boost': {'mineral_scale': 20.0, 'dust_general': 1.5},
+        'solubility_boost': {
+            'dust_general':  1.5,    # 弱酸有輕度分散效果
+            'grease_light':  1.2,    # 酸性對油脂幾乎無效
+            'grease_heavy':  1.0,    # 酸性對油脂無效
+            'biofilm':       2.0,    # 酸性可殺滅部分菌種
+            'mineral_scale': 20.0,   # 酸溶解 CaCO₃/MgCO₃ 效率極高
+        },
         'safe_on_aluminum': True,
         'safe_on_copper': False,
         'rinse_required': True,
@@ -126,7 +150,13 @@ CLEANER_DB = {
         'surface_tension_reduction': 20,
         'contact_angle_water_deg': 18,
         'cmc_pct': 0.20,                   # 季銨鹽 CMC 約 0.1~0.3%
-        'solubility_boost': {'biofilm': 10.0, 'dust_general': 1.5},
+        'solubility_boost': {
+            'dust_general':  1.5,    # 界面活性劑成分有輕度分散效果
+            'grease_light':  1.5,    # 消毒劑對油脂效果有限
+            'grease_heavy':  1.2,    # 消毒劑對油脂效果有限
+            'biofilm':       10.0,   # 季銨鹽/過氧化氫專門針對生物膜
+            'mineral_scale': 1.0,    # 消毒劑對水垢無效
+        },
         'safe_on_aluminum': True,
         'safe_on_copper': True,
         'rinse_required': True,
