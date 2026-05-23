@@ -195,3 +195,21 @@ def analyse_droplet(
         regime_description=descriptions[regime],
         critical_velocity=v_crit,
     )
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Weber, C. (1931). "Zum Zerfall eines Flüssigkeitsstrahles."
+#     ZAMM – Zeitschrift für Angewandte Mathematik und Mechanik, 11(2), 136–154.
+#     (Weber number We = ρv²d/γ definition.)
+# [2] Ohnesorge, W. (1936). "Formation of drops by nozzles and the breakup
+#     of liquid jets." ZAMM, 16(6), 355–358.
+#     (Ohnesorge number Oh = μ/√(ρdγ) definition.)
+# [3] Reitz, R.D. & Bracco, F.V. (1982). "Mechanism of atomization of a liquid
+#     jet." Physics of Fluids, 25(10), 1730–1742. (Breakup regime boundaries.)
+# [4] Hiroyasu, H. & Arai, M. (1990). "Structures of fuel sprays in diesel
+#     engines." SAE Technical Paper 900475.
+#     (Empirical SMD correlation for plain-orifice sprays.)
+# [5] Lefebvre, A.H. & McDonell, V.G. (2017). Atomization and Sprays, 2nd ed.
+#     CRC Press. Chapter 2 (spray characterization and SMD definitions).

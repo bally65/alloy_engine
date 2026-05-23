@@ -122,3 +122,11 @@ report = design_cleaning_system(
 - `references/cleaning-standards.md` — ASHRAE 與 CNS 清潔標準
 - `references/safety-guidelines.md` — 作業安全規範
 - `references/chemical-mixing.md` — 清潔劑濃度與使用建議
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Lefebvre, A.H. & McDonell, V.G. (2017). *Atomization and Sprays*, 2nd ed. CRC Press. Chapter 4 (噴嘴流量係數). |
+| [2] | ASHRAE (2015). *HVAC Systems and Equipment Handbook*. Chapter 42 (盤管清潔程序). |
+| [3] | ISO 9227 (2017). Corrosion Tests in Artificial Atmospheres — Salt Spray Tests. |

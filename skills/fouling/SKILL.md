@@ -81,3 +81,12 @@ print(f"建議每 {t:.0f} 小時（約 {t/8760:.1f} 年）清潔一次")
 | coastal_air | 5.28×10⁻⁴ | 6.0×10⁻⁴ |
 | industrial_air | 8.80×10⁻⁴ | 4.0×10⁻⁴ |
 | kitchen_exhaust | 1.76×10⁻³ | 3.0×10⁻³ |
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Kern, D.Q. & Seaton, R.E. (1959). "A theoretical analysis of thermal surface fouling." *British Chemical Engineering*, 4(5), 258–262. |
+| [2] | TEMA (2007). *Standards of the Tubular Exchanger Manufacturers Association*, 9th ed. Section 10 (積垢熱阻標準值). |
+| [3] | Müller-Steinhagen, H. (2000). *Heat Exchanger Fouling: Mitigation and Cleaning Techniques*. IChemE. |
+| [4] | ASHRAE Handbook — HVAC Systems and Equipment (2016). Chapter 23 (冷氣設備積垢係數). |

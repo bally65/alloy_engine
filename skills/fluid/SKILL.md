@@ -100,3 +100,12 @@ print(f"流速: {velocity:.2f} m/s, Re: {Re:.0f}, 流態: {flow_regime(Re)}")
 - `references/fluid-properties.md` — 常見流體物理性質表
 - `references/flow-regimes.md` — 流態判斷與紊流模型說明
 - `references/pipe-flow-theory.md` — Hagen-Poiseuille 與紊流管流理論
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Reynolds, O. (1883). "An experimental investigation of the circumstances which determine whether the motion of water shall be direct or sinuous." *Phil. Trans. R. Soc. London*, 174, 935–982. |
+| [2] | Wagner, W. & Kruse, A. (1998). *Properties of Water and Steam*. Springer. (IAPWS-IF97 水物性公式) |
+| [3] | Incropera, F.P. et al. (2007). *Fundamentals of Heat and Mass Transfer*, 6th ed. Wiley. Appendix A. |
+| [4] | White, F.M. (2011). *Fluid Mechanics*, 7th ed. McGraw-Hill. §6 (流態判斷準則). |

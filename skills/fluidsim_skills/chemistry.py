@@ -549,3 +549,20 @@ def recommend_cleaner(
         procedure=procedure,
         alternatives=alt_names,
     )
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Noyes, A.A. & Whitney, W.R. (1897). "The rate of solution of solid
+#     substances in their own solutions." J. Am. Chem. Soc., 19(12), 930–934.
+# [2] Nernst, W. (1904). "Theorie der Reaktionsgeschwindigkeit in heterogenen
+#     Systemen." Z. Phys. Chem., 47, 52–55. (Diffusion layer refinement.)
+# [3] Adamson, A.W. & Gast, A.P. (1997). Physical Chemistry of Surfaces,
+#     6th ed. Wiley. (Surface tension and wetting theory.)
+# [4] Roberge, P.R. (2008). Corrosion Engineering: Principles and Practice.
+#     McGraw-Hill. Chapter 8 (aluminum and copper corrosion in aqueous media).
+# [5] Shams El Din, A.M. & Mohammed, R.A. (1994). "Corrosion of aluminum
+#     and aluminum alloys in hot alkaline solutions." Desalination, 97, 241.
+# [6] ASTM G69-12 (2018). Standard Test Method for Measurement of Corrosion
+#     Potentials of Aluminum Alloys.

@@ -70,3 +70,13 @@ print(f"對比純水：{report.vs_water}")
 | θ > 90° | 毛細力阻礙滲入（疏水面） |
 | 典型鋁翅片接觸角 | 40–70°（清潔液）、60–80°（純水） |
 | Lucas-Washburn 適用條件 | 水平方向滲透（重力忽略）|
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Young, T. (1805). "An essay on the cohesion of fluids." *Phil. Trans. R. Soc. London*, 95, 65–87. (Young-Laplace 方程) |
+| [2] | Laplace, P.S. (1805). *Traité de Mécanique Céleste*, Supplement. |
+| [3] | Lucas, R. (1918). "Ueber das Zeitgesetz des kapillaren Aufstiegs von Flüssigkeiten." *Kolloid-Zeitschrift*, 23(1), 15–22. |
+| [4] | Washburn, E.W. (1921). "The dynamics of capillary flow." *Physical Review*, 17(3), 273–283. |
+| [5] | Adamson, A.W. & Gast, A.P. (1997). *Physical Chemistry of Surfaces*, 6th ed. Wiley. Chapter 10. |

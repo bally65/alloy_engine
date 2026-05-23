@@ -107,3 +107,16 @@ def flowrate_to_velocity(flowrate_lpm: float, diameter: float) -> float:
         raise ValueError(f"流量不可為負值，收到 {flowrate_lpm}")
     area = math.pi * (diameter / 2) ** 2
     return (flowrate_lpm / 1000 / 60) / area
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Reynolds, O. (1883). "An experimental investigation of the circumstances
+#     which determine whether the motion of water shall be direct or sinuous."
+#     Phil. Trans. R. Soc. London, 174, 935–982.
+# [2] White, F.M. (2011). Fluid Mechanics, 7th ed. McGraw-Hill. §6.
+# [3] Wagner, W. & Kruse, A. (1998). Properties of Water and Steam.
+#     Springer. (IAPWS-IF97 formulation)
+# [4] Incropera, F.P. et al. (2007). Fundamentals of Heat and Mass Transfer,
+#     6th ed. Wiley. Appendix A (water property tables).

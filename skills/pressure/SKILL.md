@@ -107,3 +107,13 @@ print(f"噴嘴可用壓力: {nozzle_p:.2f} bar")
 - `references/darcy-weisbach.md` — 公式推導與摩擦係數計算
 - `references/pipe-fittings.md` — 管路配件 K 值速查表
 - `references/pipe-sizing.md` — 管徑選型建議（流速範圍）
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Weisbach, J. (1845). *Lehrbuch der Ingenieur- und Maschinen-Mechanik*. (Darcy-Weisbach 公式原始推導) |
+| [2] | Darcy, H. (1857). "Recherches expérimentales relatives au mouvement de l'eau dans les tuyaux." *Mém. Acad. Sci.* |
+| [3] | Moody, L.F. (1944). "Friction factors for pipe flow." *Trans. ASME*, 66(8), 671–684. |
+| [4] | Colebrook, C.F. (1939). "Turbulent flow in pipes." *J. Inst. Civil Engineers*, 11(4), 133–156. |
+| [5] | Idelchik, I.E. (2008). *Handbook of Hydraulic Resistance*, 4th ed. Begell House. (管件 K 值資料庫) |

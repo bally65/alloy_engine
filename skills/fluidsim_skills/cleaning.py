@@ -257,3 +257,16 @@ def design_cleaning_system(
         warnings=warnings_list,
         procedure=procedure,
     )
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Lörcher, M. & Mewes, D. (2001). "Atomization of liquids by two-phase
+#     flow through plain orifices." Chemical Engineering & Technology, 24(2).
+# [2] Lefebvre, A.H. & McDonell, V.G. (2017). Atomization and Sprays, 2nd ed.
+#     CRC Press. Chapter 4 (plain-orifice nozzle discharge coefficients).
+# [3] ISO 9227 (2017). Corrosion Tests in Artificial Atmospheres — Salt Spray
+#     Tests. (Cleaning time safety reference.)
+# [4] ASHRAE (2015). HVAC Systems and Equipment Handbook. Chapter 42
+#     (coil cleaning procedures and water usage estimates).

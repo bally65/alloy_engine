@@ -274,3 +274,25 @@ def analyse_airflow(
         recommendation=recommendation,
         notes=notes,
     )
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Shah, R.K. & London, A.L. (1978). Laminar Flow Forced Convection in
+#     Ducts. Academic Press. (Hydraulic diameter Dh = 2·gap for parallel
+#     plates; rectangular channel friction factor f·Re correlations.)
+# [2] Hagen, G. (1839). "Ueber die Bewegung des Wassers in engen zylindrischen
+#     Röhren." Poggendorffs Ann. Phys. Chem., 46, 423–442.
+# [3] Poiseuille, J.L.M. (1840). "Recherches expérimentales sur le mouvement
+#     des liquides dans les tubes de très-petits diamètres."
+#     Comptes Rendus, 11, 961–967. (Hagen-Poiseuille: f = 64/Re.)
+# [4] Wang, C.C. et al. (1996). "Airside performance of herringbone wavy
+#     fin-and-tube heat exchangers." Int. J. Refrigeration, 20(1), 28–35.
+#     (Fin-channel pressure drop correction factors.)
+# [5] Pakdaman, M.F. et al. (2012). "Performance degradation of a natural-
+#     draft dry cooling tower due to deposits and fouling."
+#     Applied Thermal Engineering, 36, 218–227.
+#     (Fouling layer effect on airside ΔP and flow rate degradation.)
+# [6] ASHRAE (2017). ASHRAE Handbook — Fundamentals. Chapter 21
+#     (air-side pressure drop across fin-and-tube coils).

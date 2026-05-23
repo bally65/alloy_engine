@@ -88,3 +88,13 @@ report = fin_efficiency_from_kappa(
     kappa_W_mK=predicted_kappa
 )
 ```
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Harper, D.R. & Brown, W.B. (1922). "Mathematical equations for heat conduction in the fins of air cooled engines." *NACA Report No. 158*. (翅片效率 η = tanh(mL)/(mL) 推導) |
+| [2] | Dittus, F.W. & Boelter, L.M.K. (1930). "Heat transfer in automobile radiators of the tubular type." *Univ. California Publ. Eng.*, 2, 443–461. |
+| [3] | Schmidt, T.E. (1945). "La production calorifique des surfaces munies d'ailettes." *Bull. Assoc. Suisse des Electriciens*, 36(2). |
+| [4] | Incropera, F.P. et al. (2007). *Fundamentals of Heat and Mass Transfer*, 6th ed. Wiley. §3.6, §8.5. |
+| [5] | Ramires, M.L.V. et al. (1995). "Standard reference data for the thermal conductivity of water." *J. Phys. Chem. Ref. Data*, 24(3), 1377–1381. |

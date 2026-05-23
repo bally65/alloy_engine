@@ -71,3 +71,13 @@ print(f"SMD: {smd:.1f} μm")
 | We ≥ 100 | 劇烈霧化，微細液滴 |
 | 清潔噴嘴目標 SMD | 100–400 μm（翅片縫隙穿透） |
 | Oh < 0.1 | 水性液體典型值（表面張力主導）|
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Weber, C. (1931). "Zum Zerfall eines Flüssigkeitsstrahles." *ZAMM*, 11(2), 136–154. (Weber 數定義) |
+| [2] | Ohnesorge, W. (1936). "Formation of drops by nozzles and the breakup of liquid jets." *ZAMM*, 16(6), 355–358. |
+| [3] | Reitz, R.D. & Bracco, F.V. (1982). "Mechanism of atomization of a liquid jet." *Physics of Fluids*, 25(10), 1730–1742. (破碎模式邊界) |
+| [4] | Hiroyasu, H. & Arai, M. (1990). "Structures of fuel sprays in diesel engines." *SAE Technical Paper 900475*. (SMD 經驗公式) |
+| [5] | Lefebvre, A.H. & McDonell, V.G. (2017). *Atomization and Sprays*, 2nd ed. CRC Press. |

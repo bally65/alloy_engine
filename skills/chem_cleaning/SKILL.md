@@ -125,3 +125,12 @@ python scripts/full_chem_report.py \
 - `references/contamination-types.md` — 各類污垢物理化學性質
 - `references/cleaner-database.md` — 清潔劑成分與特性資料庫
 - `references/material-compatibility.md` — 清潔劑與金屬材質相容性
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Noyes, A.A. & Whitney, W.R. (1897). "The rate of solution of solid substances in their own solutions." *J. Am. Chem. Soc.*, 19(12), 930–934. |
+| [2] | Nernst, W. (1904). "Theorie der Reaktionsgeschwindigkeit in heterogenen Systemen." *Z. Phys. Chem.*, 47, 52–55. |
+| [3] | Roberge, P.R. (2008). *Corrosion Engineering: Principles and Practice*. McGraw-Hill. Chapter 8 (鋁與銅的腐蝕行為). |
+| [4] | Adamson, A.W. & Gast, A.P. (1997). *Physical Chemistry of Surfaces*, 6th ed. Wiley. (表面張力與潤濕理論) |

@@ -78,3 +78,13 @@ print(f"積垢層厚度（每側）: {delta:.1f} μm")
 | 典型翅片間距 | 居家 1.5–2.5 mm，商用 2.5–4.5 mm |
 | 積垢敏感度 | 層流通道：ΔP ∝ 1/gap³，間距縮 10% → 壓降增 37% |
 | 整合 fouling 模組 | `Rf = kern_seaton_fouling(t, Rf_star, Kf)` → 傳入 `analyse_airflow()` |
+
+## 參考文獻
+
+| # | 文獻 |
+|---|------|
+| [1] | Shah, R.K. & London, A.L. (1978). *Laminar Flow Forced Convection in Ducts*. Academic Press. (矩形通道水力直徑與 f·Re 關聯式) |
+| [2] | Hagen, G. (1839) & Poiseuille, J.L.M. (1840). (Hagen-Poiseuille 定律 f = 64/Re) |
+| [3] | Wang, C.C. et al. (1996). "Airside performance of herringbone wavy fin-and-tube heat exchangers." *Int. J. Refrigeration*, 20(1), 28–35. |
+| [4] | Pakdaman, M.F. et al. (2012). "Performance degradation due to deposits and fouling." *Applied Thermal Engineering*, 36, 218–227. |
+| [5] | ASHRAE Handbook — Fundamentals (2017). Chapter 21 (翅片盤管空氣側壓降). |

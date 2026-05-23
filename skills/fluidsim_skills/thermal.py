@@ -190,3 +190,21 @@ def fin_efficiency_from_kappa(
         heat_transfer_improvement=improvement,
         notes=notes,
     )
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Harper, D.R. & Brown, W.B. (1922). "Mathematical equations for heat
+#     conduction in the fins of air cooled engines." NACA Report No. 158.
+#     (Rectangular fin efficiency η = tanh(mL)/(mL) derivation.)
+# [2] Dittus, F.W. & Boelter, L.M.K. (1930). "Heat transfer in automobile
+#     radiators of the tubular type." Univ. California Publ. Eng., 2, 443–461.
+#     (Nu = 0.023 Re⁰·⁸ Prⁿ correlation.)
+# [3] Incropera, F.P. et al. (2007). Fundamentals of Heat and Mass Transfer,
+#     6th ed. Wiley. §3.6 (fin efficiency), §8.5 (Dittus-Boelter limits).
+# [4] Schmidt, T.E. (1945). "La production calorifique des surfaces munies
+#     d'ailettes." Bull. Assoc. Suisse des Electriciens, 36(2), 47–52.
+#     (Generalized fin efficiency for heat exchanger design.)
+# [5] Ramires, M.L.V. et al. (1995). "Standard reference data for the thermal
+#     conductivity of water." J. Phys. Chem. Ref. Data, 24(3), 1377–1381.

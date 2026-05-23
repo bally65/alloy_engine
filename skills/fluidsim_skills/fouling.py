@@ -205,3 +205,20 @@ def analyse_fouling(
         recommendation=recommendation,
         notes=notes,
     )
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Kern, D.Q. & Seaton, R.E. (1959). "A theoretical analysis of thermal
+#     surface fouling." British Chemical Engineering, 4(5), 258–262.
+#     (Rf(t) = Rf*(1 − e^{−Kf·t}) asymptotic fouling model.)
+# [2] Tubular Exchanger Manufacturers Association (TEMA, 2007).
+#     Standards of the Tubular Exchanger Manufacturers Association, 9th ed.
+#     Section 10 (fouling resistance values).
+# [3] Müller-Steinhagen, H. (2000). Heat Exchanger Fouling: Mitigation and
+#     Cleaning Techniques. IChemE. (Practical fouling data for HVAC systems.)
+# [4] Somerscales, E.F.C. & Knudsen, J.G. (1981). Fouling of Heat Transfer
+#     Equipment. Hemisphere Publishing. (Comprehensive fouling model review.)
+# [5] ASHRAE Handbook — HVAC Systems and Equipment (2016). Chapter 23
+#     (heat exchanger fouling factors for air-conditioning equipment).

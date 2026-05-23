@@ -140,3 +140,19 @@ FITTING_K_VALUES = {
     'entry_sharp':          0.5,
     'exit':                 1.0,
 }
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Weisbach, J. (1845). Lehrbuch der Ingenieur- und Maschinen-Mechanik.
+#     (Original Darcy-Weisbach formulation.)
+# [2] Darcy, H. (1857). "Recherches expérimentales relatives au mouvement
+#     de l'eau dans les tuyaux." Mémoires présentés à l'Académie des Sciences.
+# [3] Moody, L.F. (1944). "Friction factors for pipe flow."
+#     Trans. ASME, 66(8), 671–684.
+# [4] Colebrook, C.F. (1939). "Turbulent flow in pipes, with particular
+#     reference to the transition region between smooth and rough pipe laws."
+#     J. Inst. Civil Engineers, 11(4), 133–156.
+# [5] Idelchik, I.E. (2008). Handbook of Hydraulic Resistance, 4th ed.
+#     Begell House. (K-value fitting loss database.)

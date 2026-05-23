@@ -232,3 +232,21 @@ def analyse_fin_penetration(
         vs_water=vs_water,
         recommendation=recommendation,
     )
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+# [1] Young, T. (1805). "An essay on the cohesion of fluids."
+#     Phil. Trans. R. Soc. London, 95, 65–87. (Contact angle / Laplace-Young.)
+# [2] Laplace, P.S. (1805). Traité de Mécanique Céleste, Supplement.
+#     (Capillary pressure formulation.)
+# [3] Lucas, R. (1918). "Ueber das Zeitgesetz des kapillaren Aufstiegs von
+#     Flüssigkeiten." Kolloid-Zeitschrift, 23(1), 15–22.
+# [4] Washburn, E.W. (1921). "The dynamics of capillary flow."
+#     Physical Review, 17(3), 273–283.
+# [5] Adamson, A.W. & Gast, A.P. (1997). Physical Chemistry of Surfaces,
+#     6th ed. Wiley. Chapter 10 (capillary phenomena in porous media).
+# [6] Kim, C.J. & Bergles, A.E. (1988). "Particulate fouling of structured
+#     heat transfer surfaces." ASME HTD-Vol. 96, 47–55.
+#     (Fin geometry and wetting context.)
