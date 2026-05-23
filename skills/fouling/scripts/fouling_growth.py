@@ -38,10 +38,14 @@ def main():
     print(f"  漸近積垢熱阻:  {report.asymptotic_Rf:.3e} m²·K/W")
     print(f"  積垢飽和度:    {report.current_Rf/report.asymptotic_Rf*100:.1f}%")
     print(f"  效率損失:      {report.efficiency_penalty_pct:.2f}%")
-    if report.time_to_threshold_h > 0:
+    from fluidsim_skills.fouling import fouling_penalty
+    max_pen = fouling_penalty(db['Rf_star'], args.U_clean)
+    if report.efficiency_penalty_pct >= args.target_loss:
+        print(f"  距清潔門檻:    已超標，請立即清潔")
+    elif report.time_to_threshold_h > 0:
         print(f"  距清潔門檻:    {report.time_to_threshold_h:.0f} h")
     else:
-        print(f"  距清潔門檻:    已超標，請立即清潔")
+        print(f"  距清潔門檻:    此環境最大損失僅 {max_pen:.2f}%，不會觸發門檻")
     print(f"{'─'*50}")
     print(f"  建議: {report.recommendation}")
     print(f"{'═'*50}")

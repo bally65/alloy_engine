@@ -175,12 +175,22 @@ def analyse_fouling(
     penalty = fouling_penalty(Rf, U_clean)
 
     t_threshold = cleaning_interval(U_clean, Rf_star, Kf, target_loss_pct)
-    remaining = max(0.0, t_threshold - elapsed_hours)
+    remaining = 0.0 if t_threshold == float('inf') else max(0.0, t_threshold - elapsed_hours)
+
+    # 計算此環境下漸近積垢的最大可能效率損失
+    max_penalty = fouling_penalty(Rf_star, U_clean)
 
     notes = [f"環境：{db['description']}"]
     if penalty >= target_loss_pct:
         recommendation = f"已超過效率損失門檻 ({penalty:.1f}% ≥ {target_loss_pct:.0f}%)，建議立即清潔。"
         notes.append("積垢已影響冷暖效果，電費可能增加。")
+    elif remaining == 0.0 and t_threshold == float('inf'):
+        # 此環境漸近積垢不足以觸發門檻
+        recommendation = (
+            f"此環境積垢量輕微，即使長期運行效率損失最多僅 {max_penalty:.1f}%，"
+            f"低於 {target_loss_pct:.0f}% 門檻。建議每 1–2 年定期清潔即可。"
+        )
+        notes.append(f"漸近最大效率損失：{max_penalty:.2f}%（此環境不會觸發 {target_loss_pct:.0f}% 門檻）")
     elif remaining < 200:
         recommendation = f"距清潔門檻約剩 {remaining:.0f} 小時，建議近期安排清潔。"
     else:

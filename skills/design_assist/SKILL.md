@@ -1,88 +1,77 @@
 ---
 name: design_assist
-description: HVAC 清潔系統 AI 輔助設計整合工具。接受自然語言描述（如「幫我設計日立 2HP 冷氣的清潔方案」），自動協調 $fluid、$pressure、$cleaning skill，輸出完整工程設計報告。
+description: HVAC 清潔系統全域決策報告。整合流體力學、化學溶解動力學、毛細滲透、翅片熱效率、液滴動力學、積垢預測，一次輸出八節完整工程報告。
 ---
 
-# Design Assist — AI 輔助設計整合層
+# Design Assist — 全模組整合決策報告
 
 ## Overview
 
-將自然語言需求轉換為完整 HVAC 清潔系統設計報告。
-自動判斷需要呼叫哪些底層 skill，並整合計算結果輸出設計文件。
+將設備規格與環境條件轉換為完整 HVAC 清潔決策報告。
+整合六大物理模組，一次輸出：液壓設計、清潔劑推薦、毛細滲透評估、翅片效率、噴霧品質、積垢預測。
 
-**設計流程**：
+**整合流程**：
 ```
-自然語言輸入
-    ↓ 解析設備規格
-$fluid → 確認管道流態
-    ↓
-$pressure → 計算可用壓力
-    ↓
-$cleaning → 噴嘴設計 + 清潔 SOP
-    ↓
-生成設計報告（文字 + 圖表）
+設備輸入
+    ├── $fluid / $pressure / $cleaning → 液壓設計 + 清潔 SOP
+    ├── $chem_cleaning                 → 清潔劑推薦 + 溶解效率
+    ├── $capillary                     → 毛細滲透分析
+    ├── $thermal                       → 翅片效率 η
+    ├── $droplet                       → 噴霧 SMD + 破碎模式
+    └── $fouling                       → 積垢狀態 + 清潔週期
+              ↓
+    八節 Markdown 決策報告
 ```
 
 ## Core Capabilities
 
-### 1. 自然語言轉工程規格
+### 1. 全域決策報告（推薦入口）
 
-```python
-python scripts/parse_requirement.py "日立 RAS-28NK，家用自來水，要清潔蒸發器"
+```bash
+python scripts/comprehensive_report.py \
+  --equipment "日立 RAS-28NK" --type split-2hp \
+  --contamination grease_light --supply 3.0 \
+  --elapsed-hours 2000 --output report.md
 ```
 
-輸出解析後的工程參數（設備尺寸、水源壓力範圍等）。
+輸出八節報告：摘要、設備規格、液壓設計、化學清潔、毛細滲透、翅片效率、液滴品質、積垢分析。
 
-### 2. 完整設計報告生成
-
-```python
-python scripts/full_report.py \
-  --equipment "日立 RAS-28NK" \
-  --type split-indoor \
-  --supply-pressure 3.0 \
-  --output report.md
-```
-
-### 3. 多方案比較
-
-```python
-python scripts/compare_scenarios.py \
-  --equipment "商用箱型機 5HP" \
-  --pressure-range "2.0,4.0,6.0,8.0"
-```
-
-## Common Use Cases
-
-### 快速生成家用冷氣清潔方案
+### 2. 液壓設計報告（舊版）
 
 ```bash
 python scripts/full_report.py \
-  --equipment "一般家用分離式 1.5HP" \
-  --type split-indoor \
-  --width 800 --height 180 \
-  --supply-pressure 3.0 \
-  --output 清潔方案.md
+  --equipment "日立 RAS-28NK" --type split-2hp \
+  --supply-pressure 3.0 --output hydraulic.md
 ```
 
-### 比較不同水壓下的清潔效果
+### 3. 參數說明
 
-```bash
-python scripts/compare_scenarios.py \
-  --equipment "分離式 2HP" \
-  --width 900 --height 200 \
-  --pressure-range "2.0,3.0,4.0,6.0,8.0"
-```
+| 參數 | 預設 | 說明 |
+|------|------|------|
+| `--contamination` | grease_light | dust_general / grease_light / grease_heavy / biofilm / mineral_scale |
+| `--environment` | ac_indoor_unit | ac_indoor_unit / ac_outdoor_unit / coastal_air / industrial_air / kitchen_exhaust |
+| `--elapsed-hours` | 1000 | 上次清潔後已運行時數 |
+| `--fin-height` | 15.0 | 翅片高度 mm |
+| `--kappa` | 自動（Al=237/Cu=385）| 可輸入 alloy_engine 預測的 κ 值 |
 
 ## Quick Reference
 
 | 操作 | 指令 |
 |------|------|
-| 快速設計 | `python scripts/full_report.py --equipment NAME --supply-pressure P` |
-| 多壓力比較 | `python scripts/compare_scenarios.py --pressure-range "2,4,6,8"` |
-| 需求解析 | `python scripts/parse_requirement.py "描述文字"` |
+| 全域報告 | `python scripts/comprehensive_report.py --equipment NAME --supply P` |
+| 液壓報告 | `python scripts/full_report.py --equipment NAME --supply-pressure P` |
+| 污垢類型 | dust_general, grease_light, grease_heavy, biofilm, mineral_scale |
 
-## Resources
+## alloy_engine κ 整合
 
-- `references/equipment-database.md` — 常見冷氣型號規格資料庫
-- `references/design-workflow.md` — 設計流程與決策邏輯
-- `references/report-format.md` — 設計報告格式規範
+翅片材料由 alloy_engine 預測的 κ 可透過 `--kappa` 直接傳入：
+
+```bash
+# 先用 thermal/scripts/alloy_kappa_bridge.py 計算合金 κ
+python skills/thermal/scripts/alloy_kappa_bridge.py --Fe 0.7 --Ni 0.2 --Al 0.1
+# → κ = 134.2 W/m·K
+
+# 再帶入全域報告
+python scripts/comprehensive_report.py \
+  --equipment "合金翅片蒸發器" --supply 3.0 --kappa 134.2
+```
