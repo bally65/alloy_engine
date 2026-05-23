@@ -37,6 +37,7 @@ class CleaningReport:
     nozzle_pressure_bar: float
     recommended_distance_mm: float
     estimated_cleaning_time_min: float
+    water_used_L: float = 0.0          # 本次清潔預估總用水量 (L)
     warnings: List[str] = field(default_factory=list)
     procedure: List[str] = field(default_factory=list)
 
@@ -252,6 +253,7 @@ def design_cleaning_system(
         nozzle_pressure_bar=nozzle_p,
         recommended_distance_mm=target_distance_mm,
         estimated_cleaning_time_min=cleaning_time,
+        water_used_L=nozzle.flowrate_lpm * cleaning_time,
         warnings=warnings_list,
         procedure=procedure,
     )

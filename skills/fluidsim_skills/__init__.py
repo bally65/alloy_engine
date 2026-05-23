@@ -19,6 +19,7 @@ from .chemistry import (
     noyes_whitney_dissolution,
     surface_forces,
     recommend_cleaner,
+    corrosion_risk,
     CONTAMINATION_DB,
     CLEANER_DB,
 )

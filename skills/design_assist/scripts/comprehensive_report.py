@@ -15,7 +15,7 @@ from datetime import date
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from fluidsim_skills.cleaning import design_cleaning_system
-from fluidsim_skills.chemistry import recommend_cleaner, CONTAMINATION_DB
+from fluidsim_skills.chemistry import recommend_cleaner, corrosion_risk, CONTAMINATION_DB
 from fluidsim_skills.capillary import analyse_fin_penetration
 from fluidsim_skills.thermal import fin_efficiency_from_kappa
 from fluidsim_skills.droplet import spray_droplet_size, weber_number, droplet_regime
@@ -104,7 +104,19 @@ def generate_report(args) -> str:
     )
     drop_regime = droplet_regime(We, 0.01)
 
-    # 6. 積垢分析
+    # 6. 腐蝕風險（由 ChemCleaningReport 的名稱反查清潔劑 key）
+    from fluidsim_skills.chemistry import CLEANER_DB as _CDB
+    _cleaner_key = next(
+        (k for k, v in _CDB.items() if v['name'] == chem.recommended_cleaner),
+        'alkaline_mild',
+    )
+    corr = corrosion_risk(
+        cleaner_key=_cleaner_key,
+        fin_material=args.fin_material,
+        contact_time_min=chem.contact_time_min,
+    )
+
+    # 7. 積垢分析
     foul = analyse_fouling(
         elapsed_hours=args.elapsed_hours,
         environment=args.environment,
@@ -159,6 +171,9 @@ def generate_report(args) -> str:
       f"{'翅片穿透佳' if 100 <= smd <= 400 else '建議調整壓力/孔徑'} |")
     s(f"| 積垢狀態 | 效率損失 {foul.efficiency_penalty_pct:.2f}% | "
       f"{'立即清潔' if foul.efficiency_penalty_pct >= args.target_loss else '正常'} |")
+    risk_icon = {'safe': '✓ 安全', 'low': '→ 低風險', 'medium': '⚠ 中風險', 'high': '⚠ 高風險'}
+    s(f"| 腐蝕風險 | pH {corr.ph:.1f}，接觸 {corr.contact_time_min:.0f} min | "
+      f"{risk_icon.get(corr.risk_level, corr.risk_level)} |")
     s(f"")
 
     # ── 一、設備規格 ─────────────────────────────────────────────────────────
@@ -192,6 +207,7 @@ def generate_report(args) -> str:
     s(f"| 覆蓋寬度 | {phys.nozzle.coverage_width_mm:.0f} mm @ {150:.0f}mm |")
     s(f"| 管道流態 | Re={Re_pipe:.0f}（{regime_str}）|")
     s(f"| 預計清潔時間 | {phys.estimated_cleaning_time_min:.0f} 分鐘 |")
+    s(f"| 預估用水量 | {phys.water_used_L:.1f} L |")
     s(f"")
 
     # ── 三、化學清潔 ─────────────────────────────────────────────────────────
@@ -209,6 +225,11 @@ def generate_report(args) -> str:
     s(f"| 溶解效率 | {eff_pct:.1f}% {_bar(eff_pct, 100)} |")
     s(f"| 綜合效果 | {chem.combined_effectiveness} |")
     s(f"")
+    s(f"| 腐蝕風險 | **{risk_icon.get(corr.risk_level, corr.risk_level)}** |")
+    s(f"")
+    if corr.risk_level in ('medium', 'high'):
+        s(f"> ⚠ {corr.recommendation}")
+        s(f"")
     if chem.alternatives:
         s(f"替代方案：" + "、".join(chem.alternatives))
         s(f"")

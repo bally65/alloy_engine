@@ -166,8 +166,108 @@ CLEANER_DB = {
     },
 }
 
-
 # ─── 計算函數 ──────────────────────────────────────────────
+
+@dataclass
+class CorrosionRisk:
+    risk_level: str          # 'safe' | 'low' | 'medium' | 'high'
+    ph: float
+    fin_material: str
+    contact_time_min: float
+    max_safe_time_min: float # 此 pH 下建議最長接觸時間（min），-1 表示無限制
+    reason: str
+    recommendation: str
+
+
+def corrosion_risk(
+    cleaner_key: str,
+    fin_material: str = 'aluminum',
+    contact_time_min: float = 10.0,
+) -> CorrosionRisk:
+    """
+    評估清潔劑對翅片材料的腐蝕風險。
+
+    鋁翅片（兩性金屬）：pH < 4 或 pH > 10.5 時鈍化膜破壞，溶解速率顯著上升。
+    銅翅片：pH < 4 時受強酸侵蝕；鹼性環境相對穩定。
+
+    Args:
+        cleaner_key:       CLEANER_DB 中的清潔劑鍵值
+        fin_material:      'aluminum' 或 'copper'
+        contact_time_min:  實際接觸時間 (min)
+
+    Returns:
+        CorrosionRisk
+
+    Raises:
+        ValueError: 未知 cleaner_key 或 fin_material
+    """
+    if cleaner_key not in CLEANER_DB:
+        raise ValueError(f"未知清潔劑 '{cleaner_key}'，有效值：{list(CLEANER_DB.keys())}")
+    if fin_material not in ('aluminum', 'copper'):
+        raise ValueError(f"fin_material 必須為 'aluminum' 或 'copper'，收到 '{fin_material}'")
+
+    cleaner = CLEANER_DB[cleaner_key]
+    ph = cleaner['ph']
+    name = cleaner['name']
+    mat_zh = '鋁翅片' if fin_material == 'aluminum' else '銅翅片'
+
+    if fin_material == 'aluminum':
+        # Al 兩性金屬：pH 4–9 最穩定；pH < 4 酸蝕；pH > 10.5 鹼蝕
+        if ph > 11.0:
+            risk, max_t = 'high', 3.0
+            reason = f"pH {ph:.1f} 遠超鋁翅片安全上限（>10.5），氫氧化物快速溶解鈍化膜"
+        elif ph > 10.5:
+            risk, max_t = 'medium', 10.0
+            reason = f"pH {ph:.1f} 超過鋁安全上限（>10.5），鈍化膜開始受損"
+        elif ph < 3.0:
+            risk, max_t = 'high', 3.0
+            reason = f"pH {ph:.1f} 強酸環境，鋁快速溶解（Al + 3H⁺ → Al³⁺ + H₂↑）"
+        elif ph < 4.5:
+            risk, max_t = 'medium', 20.0
+            reason = f"pH {ph:.1f} 弱酸環境，長時間接觸會緩慢侵蝕鋁翅片"
+        else:
+            risk, max_t = 'safe', -1.0
+            reason = f"pH {ph:.1f} 在鋁翅片安全範圍（4.5–10.5）內，鈍化膜穩定"
+    else:  # copper
+        # Cu：pH < 4 受酸蝕；酸性氧化環境（HNO₃）最危險；鹼性相對穩定
+        if ph < 3.5:
+            risk, max_t = 'high', 5.0
+            reason = f"pH {ph:.1f} 強酸環境，銅翅片受酸蝕（Cu + 2H⁺ → Cu²⁺ + H₂↑）"
+        elif ph < 5.0:
+            risk, max_t = 'medium', 30.0
+            reason = f"pH {ph:.1f} 弱酸，長期接觸會緩慢侵蝕銅翅片"
+        elif ph > 12.0:
+            risk, max_t = 'low', 60.0
+            reason = f"pH {ph:.1f} 強鹼，銅的腐蝕速率較低但仍有輕微影響"
+        else:
+            risk, max_t = 'safe', -1.0
+            reason = f"pH {ph:.1f} 在銅翅片安全範圍（5–12）內"
+
+    # 接觸時間超標則升一級
+    if max_t > 0 and contact_time_min > max_t and risk == 'medium':
+        risk = 'high'
+        reason += f"；且接觸時間 {contact_time_min:.0f} min 超過建議上限 {max_t:.0f} min"
+    elif max_t > 0 and contact_time_min > max_t and risk == 'low':
+        risk = 'medium'
+        reason += f"；接觸時間 {contact_time_min:.0f} min 超過建議上限 {max_t:.0f} min"
+
+    recommendations = {
+        'safe':   f"{name} 對 {mat_zh} 安全，可依建議濃度正常使用。",
+        'low':    f"{name} 對 {mat_zh} 風險低，控制接觸時間在 {max_t:.0f} 分鐘以內。",
+        'medium': f"{name} 對 {mat_zh} 有中度腐蝕風險，請稀釋至最低建議濃度，接觸 ≤ {max(max_t,3):.0f} 分鐘後充分沖洗。",
+        'high':   f"⚠ {name} 對 {mat_zh} 腐蝕風險高，建議換用其他清潔劑或嚴格控制在 {max(max_t,1):.0f} 分鐘以內並立即沖洗。",
+    }
+
+    return CorrosionRisk(
+        risk_level=risk,
+        ph=ph,
+        fin_material=fin_material,
+        contact_time_min=contact_time_min,
+        max_safe_time_min=max_t,
+        reason=reason,
+        recommendation=recommendations[risk],
+    )
+
 
 @dataclass
 class DissolutionResult:

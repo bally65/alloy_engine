@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from skills.fluidsim_skills.fluid import water_properties, reynolds_number, flow_regime, flowrate_to_velocity
 from skills.fluidsim_skills.pressure import pressure_drop, friction_factor
 from skills.fluidsim_skills.cleaning import nozzle_flowrate, nozzle_impact_force
-from skills.fluidsim_skills.chemistry import noyes_whitney_dissolution, surface_forces, CLEANER_DB, CONTAMINATION_DB
+from skills.fluidsim_skills.chemistry import noyes_whitney_dissolution, surface_forces, corrosion_risk, CLEANER_DB, CONTAMINATION_DB
 from skills.fluidsim_skills.capillary import capillary_pressure, lucas_washburn_penetration, time_to_penetrate, analyse_fin_penetration
 from skills.fluidsim_skills.thermal import fin_efficiency, dittus_boelter_h, fin_efficiency_from_kappa
 from skills.fluidsim_skills.droplet import weber_number, ohnesorge_number, droplet_regime, spray_droplet_size, analyse_droplet
@@ -493,6 +493,122 @@ class TestFouling:
     def test_fouling_invalid_environment(self):
         with pytest.raises(ValueError):
             analyse_fouling(1000, environment='mars_dust')
+
+
+# ─── corrosion_risk 測試 ─────────────────────────────────────
+
+class TestCorrosionRisk:
+    def test_strong_alkali_high_risk_aluminum(self):
+        r = corrosion_risk('alkaline_strong', 'aluminum', 10.0)
+        assert r.risk_level == 'high', "強鹼對鋁翅片應為高風險"
+
+    def test_neutral_safe_aluminum(self):
+        r = corrosion_risk('surfactant_neutral', 'aluminum', 10.0)
+        assert r.risk_level == 'safe'
+
+    def test_acid_safe_on_copper(self):
+        r = corrosion_risk('acid_mild', 'copper', 10.0)
+        # pH 4.0 → medium risk for copper
+        assert r.risk_level in ('medium', 'high')
+
+    def test_acid_safe_on_aluminum(self):
+        # 弱酸 pH 4.0，短暫接觸對鋁應為 medium（非 high）
+        r = corrosion_risk('acid_mild', 'aluminum', 5.0)
+        assert r.risk_level in ('medium', 'low')
+
+    def test_recommendation_not_empty(self):
+        r = corrosion_risk('alkaline_mild', 'aluminum', 10.0)
+        assert len(r.recommendation) > 0
+
+    def test_invalid_cleaner_raises(self):
+        with pytest.raises(ValueError):
+            corrosion_risk('unknown_cleaner', 'aluminum')
+
+    def test_invalid_material_raises(self):
+        with pytest.raises(ValueError):
+            corrosion_risk('alkaline_mild', 'titanium')
+
+
+# ─── water_used_L 測試 ───────────────────────────────────────
+
+class TestWaterUsed:
+    def test_water_used_positive(self):
+        from skills.fluidsim_skills.cleaning import design_cleaning_system
+        r = design_cleaning_system('test', 800, 180, 3.0)
+        assert r.water_used_L > 0
+
+    def test_water_used_equals_flow_times_time(self):
+        from skills.fluidsim_skills.cleaning import design_cleaning_system
+        r = design_cleaning_system('test', 800, 180, 3.0)
+        expected = r.nozzle.flowrate_lpm * r.estimated_cleaning_time_min
+        assert abs(r.water_used_L - expected) < 1e-9
+
+    def test_higher_pressure_more_water(self):
+        from skills.fluidsim_skills.cleaning import design_cleaning_system
+        r1 = design_cleaning_system('test', 800, 180, 2.0)
+        r2 = design_cleaning_system('test', 800, 180, 6.0)
+        assert r2.water_used_L > r1.water_used_L
+
+
+# ─── 集成測試：comprehensive_report ──────────────────────────
+
+class TestComprehensiveReport:
+    def test_generates_without_error(self):
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'skills'))
+        from design_assist.scripts.comprehensive_report import generate_report
+
+        class Args:
+            equipment = '測試機台'
+            type = 'split-1.5hp'
+            width = None
+            height = None
+            supply = 3.0
+            contamination = 'grease_light'
+            fin_material = 'aluminum'
+            fin_spacing = None
+            fin_height = 15.0
+            fin_thickness = 0.1
+            kappa = None
+            elapsed_hours = 1000.0
+            environment = 'ac_indoor_unit'
+            U_clean = 50.0
+            target_loss = 10.0
+            pipe_d = 9.5
+
+        report = generate_report(Args())
+        assert '摘要' in report
+        assert '毛細滲透' in report
+        assert '積垢' in report
+        assert '翅片效率' in report
+        assert len(report) > 500
+
+    def test_all_contamination_types(self):
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'skills'))
+        from design_assist.scripts.comprehensive_report import generate_report
+
+        class Args:
+            type = 'split-1.5hp'
+            width = None
+            height = None
+            supply = 3.0
+            fin_material = 'aluminum'
+            fin_spacing = None
+            fin_height = 15.0
+            fin_thickness = 0.1
+            kappa = None
+            elapsed_hours = 500.0
+            environment = 'ac_indoor_unit'
+            U_clean = 50.0
+            target_loss = 10.0
+            pipe_d = 9.5
+
+        for cont in CONTAMINATION_DB.keys():
+            Args.equipment = f'測試-{cont}'
+            Args.contamination = cont
+            report = generate_report(Args())
+            assert len(report) > 200, f"contamination={cont} 報告異常短"
 
 
 if __name__ == '__main__':
