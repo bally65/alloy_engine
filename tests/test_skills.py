@@ -13,6 +13,10 @@ from skills.fluidsim_skills.fluid import water_properties, reynolds_number, flow
 from skills.fluidsim_skills.pressure import pressure_drop, friction_factor
 from skills.fluidsim_skills.cleaning import nozzle_flowrate, nozzle_impact_force
 from skills.fluidsim_skills.chemistry import noyes_whitney_dissolution, surface_forces, CLEANER_DB, CONTAMINATION_DB
+from skills.fluidsim_skills.capillary import capillary_pressure, lucas_washburn_penetration, time_to_penetrate, analyse_fin_penetration
+from skills.fluidsim_skills.thermal import fin_efficiency, dittus_boelter_h, fin_efficiency_from_kappa
+from skills.fluidsim_skills.droplet import weber_number, ohnesorge_number, droplet_regime, spray_droplet_size, analyse_droplet
+from skills.fluidsim_skills.fouling import kern_seaton_fouling, cleaning_interval, fouling_penalty, analyse_fouling, FOULING_RESISTANCE_DB
 
 
 # ─── fluid.py 測試 ───────────────────────────────────────────
@@ -327,6 +331,168 @@ class TestSolubilityBoostCompleteness:
         r_dis  = noyes_whitney_dissolution('biofilm', 20, 'disinfectant', 1.0)
         r_surf = noyes_whitney_dissolution('biofilm', 20, 'surfactant_neutral', 1.0)
         assert r_dis.dissolved_fraction > r_surf.dissolved_fraction
+
+
+# ─── capillary.py 測試 ──────────────────────────────────────
+
+class TestCapillary:
+    def test_pressure_positive_when_angle_below_90(self):
+        pc = capillary_pressure(30.0, 45.0, 1.0)
+        assert pc > 0, "θ < 90° 時毛細壓力應為正（促進滲入）"
+
+    def test_pressure_zero_when_angle_90(self):
+        pc = capillary_pressure(30.0, 90.0, 1.0)
+        assert abs(pc) < 1e-6, "θ = 90° 時毛細壓力應接近零"
+
+    def test_pressure_negative_when_angle_above_90(self):
+        pc = capillary_pressure(30.0, 120.0, 1.0)
+        assert pc < 0, "θ > 90° 時毛細壓力應為負（阻礙滲入）"
+
+    def test_penetration_depth_increases_with_time(self):
+        x1 = lucas_washburn_penetration(30.0, 45.0, 1.0, 1e-3, 10.0)
+        x2 = lucas_washburn_penetration(30.0, 45.0, 1.0, 1e-3, 40.0)
+        assert x2 > x1, "滲透深度應隨時間增加（Lucas-Washburn √t 關係）"
+
+    def test_penetration_blocked_when_angle_ge_90(self):
+        x = lucas_washburn_penetration(30.0, 90.0, 1.0, 1e-3, 60.0)
+        assert x == 0.0, "θ ≥ 90° 無法自發滲透"
+
+    def test_time_to_penetrate_infinite_when_blocked(self):
+        t = time_to_penetrate(30.0, 90.0, 1.0, 1e-3, 10.0)
+        assert t == float('inf')
+
+    def test_analyse_fin_penetration_report(self):
+        report = analyse_fin_penetration(2.0, 15.0, 30.0, 25.0, 1e-3)
+        assert report.can_reach_full_depth in (True, False)
+        assert report.capillary_pressure_pa > 0
+        assert report.time_to_full_penetration_s > 0
+        assert report.recommendation != ''
+
+
+class TestCapillaryInputValidation:
+    def test_negative_tension_raises(self):
+        with pytest.raises(ValueError):
+            capillary_pressure(-1.0, 45.0, 1.0)
+
+    def test_zero_radius_raises(self):
+        with pytest.raises(ValueError):
+            capillary_pressure(30.0, 45.0, 0.0)
+
+    def test_angle_out_of_range_raises(self):
+        with pytest.raises(ValueError):
+            capillary_pressure(30.0, 200.0, 1.0)
+
+
+# ─── thermal.py 測試 ────────────────────────────────────────
+
+class TestThermal:
+    def test_short_fin_efficiency_near_one(self):
+        # 極短翅片幾乎無熱阻，η 應趨近 1
+        eta = fin_efficiency(0.001, 0.0001, 205.0, 30.0)
+        assert eta > 0.99
+
+    def test_tall_fin_efficiency_below_one(self):
+        # 較高翅片效率應明顯 < 1
+        eta = fin_efficiency(0.050, 0.0001, 205.0, 30.0)
+        assert eta < 0.95
+
+    def test_higher_kappa_higher_efficiency(self):
+        # 更高 κ 翅片效率應更高（熱更容易傳到翅片末端）
+        eta_low = fin_efficiency(0.015, 0.0001, 100.0, 30.0)
+        eta_high = fin_efficiency(0.015, 0.0001, 400.0, 30.0)
+        assert eta_high > eta_low
+
+    def test_fin_efficiency_from_kappa_consistency(self):
+        # fin_efficiency_from_kappa 應與 fin_efficiency 直接計算結果一致
+        report = fin_efficiency_from_kappa(15.0, 0.1, 205.0, 30.0)
+        eta_direct = fin_efficiency(0.015, 0.0001, 205.0, 30.0)
+        assert abs(report.fin_efficiency - eta_direct) < 1e-10
+
+    def test_dittus_boelter_positive(self):
+        h = dittus_boelter_h(2.0, 0.009, 25.0)
+        assert h > 0
+
+    def test_fin_efficiency_invalid_inputs(self):
+        with pytest.raises(ValueError):
+            fin_efficiency(0, 0.0001, 205.0, 30.0)
+        with pytest.raises(ValueError):
+            fin_efficiency(0.015, 0, 205.0, 30.0)
+        with pytest.raises(ValueError):
+            fin_efficiency(0.015, 0.0001, 0, 30.0)
+
+
+# ─── droplet.py 測試 ────────────────────────────────────────
+
+class TestDroplet:
+    def test_weber_number_positive(self):
+        We = weber_number(10.0, 0.0002, 998.2, 0.0728)
+        assert We > 0
+
+    def test_ohnesorge_number_positive(self):
+        Oh = ohnesorge_number(0.0002, 998.2, 1.002e-3, 0.0728)
+        assert Oh > 0
+
+    def test_intact_regime_low_we(self):
+        We = weber_number(1.0, 0.0002, 998.2, 0.0728)
+        Oh = ohnesorge_number(0.0002, 998.2, 1.002e-3, 0.0728)
+        assert droplet_regime(We, Oh) == 'intact'
+
+    def test_catastrophic_regime_high_we(self):
+        We = weber_number(30.0, 0.002, 998.2, 0.0728)
+        Oh = ohnesorge_number(0.002, 998.2, 1.002e-3, 0.0728)
+        assert droplet_regime(We, Oh) == 'catastrophic_breakup'
+
+    def test_smd_decreases_with_pressure(self):
+        smd_low = spray_droplet_size(1.0, 2.0)
+        smd_high = spray_droplet_size(6.0, 2.0)
+        assert smd_high < smd_low, "更高壓力應產生更小 SMD"
+
+    def test_smd_invalid_pressure(self):
+        with pytest.raises(ValueError):
+            spray_droplet_size(0.0, 2.0)
+
+
+# ─── fouling.py 測試 ────────────────────────────────────────
+
+class TestFouling:
+    def test_rf_grows_with_time(self):
+        rf1 = kern_seaton_fouling(100, 1.76e-4, 8e-4)
+        rf2 = kern_seaton_fouling(2000, 1.76e-4, 8e-4)
+        assert rf2 > rf1
+
+    def test_rf_approaches_asymptote(self):
+        rf_long = kern_seaton_fouling(1e6, 1.76e-4, 8e-4)
+        assert abs(rf_long - 1.76e-4) / 1.76e-4 < 0.001, "長時間後應趨近 Rf*"
+
+    def test_fouling_penalty_between_0_and_100(self):
+        penalty = fouling_penalty(1.76e-4, 50.0)
+        assert 0 < penalty < 100
+
+    def test_cleaning_interval_finite(self):
+        # 使用高 Rf* (0.01) 和較高 U (100) 確保 10% 損失在漸近值範圍內可達到
+        # Rf_target = 0.10/(100×0.90) ≈ 1.11e-3 < 0.01 = Rf*，因此結果為有限值
+        t = cleaning_interval(100.0, 0.01, 0.001, 10.0)
+        assert 0 < t < float('inf')
+
+    def test_cleaning_interval_infinite_when_target_unreachable(self):
+        # 漸近熱阻太小，永遠不能造成 50% 損失
+        t = cleaning_interval(U_clean=50.0, asymptotic_Rf=1e-6,
+                               fouling_rate_constant=1e-3, target_efficiency_loss_pct=50.0)
+        assert t == float('inf')
+
+    def test_analyse_fouling_report(self):
+        report = analyse_fouling(1000, 'ac_indoor_unit')
+        assert report.current_Rf > 0
+        assert 0 <= report.efficiency_penalty_pct < 100
+        assert report.recommendation != ''
+
+    def test_fouling_invalid_time(self):
+        with pytest.raises(ValueError):
+            kern_seaton_fouling(-1, 1.76e-4, 8e-4)
+
+    def test_fouling_invalid_environment(self):
+        with pytest.raises(ValueError):
+            analyse_fouling(1000, environment='mars_dust')
 
 
 if __name__ == '__main__':

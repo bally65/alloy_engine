@@ -22,3 +22,28 @@ from .chemistry import (
     CONTAMINATION_DB,
     CLEANER_DB,
 )
+from .capillary import (
+    capillary_pressure,
+    lucas_washburn_penetration,
+    time_to_penetrate,
+    analyse_fin_penetration,
+)
+from .thermal import (
+    fin_efficiency,
+    dittus_boelter_h,
+    fin_efficiency_from_kappa,
+)
+from .droplet import (
+    weber_number,
+    ohnesorge_number,
+    droplet_regime,
+    spray_droplet_size,
+    analyse_droplet,
+)
+from .fouling import (
+    kern_seaton_fouling,
+    cleaning_interval,
+    fouling_penalty,
+    analyse_fouling,
+    FOULING_RESISTANCE_DB,
+)

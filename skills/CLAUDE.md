@@ -12,6 +12,10 @@
 | `$cleaning` | 冷氣蒸發器/冷凝器清潔方案設計 | `cleaning/SKILL.md` |
 | `$design_assist` | 自然語言 → 完整 HVAC 清潔設計報告 | `design_assist/SKILL.md` |
 | `$chem_cleaning` | 污垢溶解動力學、表面張力/剪切力、清潔劑推薦 | `chem_cleaning/SKILL.md` |
+| `$capillary` | 毛細壓力、Lucas-Washburn 滲透深度、翅片滲透分析 | `capillary/SKILL.md` |
+| `$thermal` | 翅片效率 η、Dittus-Boelter h、alloy_engine κ 整合 | `thermal/SKILL.md` |
+| `$droplet` | Weber/Ohnesorge 數、破碎模式、SMD 估算 | `droplet/SKILL.md` |
+| `$fouling` | Kern-Seaton 積垢模型、清潔週期、TEMA 積垢熱阻 | `fouling/SKILL.md` |
 
 ## 共用計算模組
 
@@ -22,6 +26,11 @@ fluidsim_skills/
   fluid.py     ← 水的物理性質、雷諾數、流態判斷
   pressure.py  ← Darcy-Weisbach 壓損、閥門 K 值
   cleaning.py  ← 噴嘴計算、清潔系統設計
+  chemistry.py ← Noyes-Whitney 溶解動力學、清潔劑資料庫
+  capillary.py ← Laplace-Young 毛細壓力、Lucas-Washburn 滲透
+  thermal.py   ← 翅片效率 η、Dittus-Boelter h、alloy_engine κ 介面
+  droplet.py   ← Weber/Ohnesorge 數、SMD 估算
+  fouling.py   ← Kern-Seaton 積垢模型、TEMA 積垢熱阻資料庫
 ```
 
 ## 快速使用
@@ -61,6 +70,11 @@ design_assist
     │     │     └── fluid
     │     └── fluid
     └── fluid
+
+capillary   ← 獨立模組
+thermal     ← fluid（water_properties, reynolds_number）
+droplet     ← 獨立模組
+fouling     ← 獨立模組（配合 thermal 使用效果更佳）
 ```
 
 ## 開發規範
