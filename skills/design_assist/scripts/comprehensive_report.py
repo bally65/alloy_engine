@@ -20,6 +20,7 @@ from fluidsim_skills.capillary import analyse_fin_penetration
 from fluidsim_skills.thermal import fin_efficiency_from_kappa
 from fluidsim_skills.droplet import spray_droplet_size, weber_number, droplet_regime
 from fluidsim_skills.fouling import analyse_fouling, fouling_penalty, FOULING_RESISTANCE_DB
+from fluidsim_skills.airflow import analyse_airflow
 from fluidsim_skills.fluid import flowrate_to_velocity, reynolds_number, flow_regime, water_properties
 
 EQUIPMENT_PRESETS = {
@@ -125,6 +126,21 @@ def generate_report(args) -> str:
     )
     max_pen = fouling_penalty(FOULING_RESISTANCE_DB[args.environment]['Rf_star'], args.U_clean)
 
+    # 8. 空氣側壓降
+    _deposit_map = {
+        'ac_indoor_unit': 'dust', 'ac_outdoor_unit': 'dust',
+        'city_water': 'scale', 'coastal_air': 'dust',
+        'industrial_air': 'grease', 'kitchen_exhaust': 'grease',
+    }
+    air = analyse_airflow(
+        face_velocity_ms=args.face_velocity,
+        fin_pitch_mm=fin_spacing,
+        fin_height_mm=args.fin_height,
+        fin_thickness_mm=args.fin_thickness,
+        Rf_current=foul.current_Rf,
+        deposit_type=_deposit_map.get(args.environment, 'dust'),
+    )
+
     # 管道流態
     props = water_properties(20)
     v_pipe = flowrate_to_velocity(phys.nozzle.flowrate_lpm, args.pipe_d / 1000)
@@ -171,6 +187,8 @@ def generate_report(args) -> str:
       f"{'翅片穿透佳' if 100 <= smd <= 400 else '建議調整壓力/孔徑'} |")
     s(f"| 積垢狀態 | 效率損失 {foul.efficiency_penalty_pct:.2f}% | "
       f"{'立即清潔' if foul.efficiency_penalty_pct >= args.target_loss else '正常'} |")
+    s(f"| 氣流衰退 | 壓降增 {air.pressure_increase_pct:.1f}%，風量減 {air.airflow_reduction_pct:.1f}% | "
+      f"{'⚠ 顯著' if air.airflow_reduction_pct > 5 else '✓ 輕微'} |")
     risk_icon = {'safe': '✓ 安全', 'low': '→ 低風險', 'medium': '⚠ 中風險', 'high': '⚠ 高風險'}
     s(f"| 腐蝕風險 | pH {corr.ph:.1f}，接觸 {corr.contact_time_min:.0f} min | "
       f"{risk_icon.get(corr.risk_level, corr.risk_level)} |")
@@ -291,10 +309,30 @@ def generate_report(args) -> str:
     s(f"| SMD 評估 | {smd_eval} |")
     s(f"")
 
-    # ── 七、積垢分析 ─────────────────────────────────────────────────────────
+    # ── 七、空氣側壓降 ───────────────────────────────────────────────────────
     s(f"---")
     s(f"")
-    s(f"## 七、積垢狀態分析（Kern-Seaton + TEMA）")
+    s(f"## 七、空氣側壓降與風量衰退（矩形通道 Hagen-Poiseuille）")
+    s(f"")
+    s(f"面風速 **{args.face_velocity:.1f} m/s**，翅片間距 **{fin_spacing:.1f} mm**，Re={air.reynolds_number:.0f}")
+    s(f"")
+    s(f"| 項目 | 乾淨翅片 | 積垢後 | 影響 |")
+    s(f"|------|---------|--------|------|")
+    s(f"| 積垢層厚度 | 0 μm | {air.fouling_layer_um:.1f} μm/側 | — |")
+    s(f"| 有效間隙 | {fin_spacing - args.fin_thickness:.2f} mm | {air.effective_gap_mm:.3f} mm | "
+      f"縮小 {(1-air.effective_gap_mm/(fin_spacing-args.fin_thickness))*100:.1f}% |")
+    s(f"| 空氣側壓降 | {air.pressure_drop_clean_pa:.2f} Pa | {air.pressure_drop_fouled_pa:.2f} Pa | "
+      f"+{air.pressure_increase_pct:.1f}% |")
+    s(f"| 風量衰退 | 0% | **{air.airflow_reduction_pct:.1f}%** | 同等風機壓力 |")
+    s(f"| 額外風機功率 | 0% | {air.power_increase_pct:.1f}% | 維持原風量 |")
+    s(f"")
+    s(f"> {air.recommendation}")
+    s(f"")
+
+    # ── 八、積垢分析 ─────────────────────────────────────────────────────────
+    s(f"---")
+    s(f"")
+    s(f"## 八、積垢狀態分析（Kern-Seaton + TEMA）")
     s(f"")
     env_info = FOULING_RESISTANCE_DB[args.environment]
     s(f"環境：**{env_info['description']}**　　已運行：**{args.elapsed_hours:.0f} 小時**")
@@ -315,7 +353,7 @@ def generate_report(args) -> str:
     # ── 八、完整作業程序 ─────────────────────────────────────────────────────
     s(f"---")
     s(f"")
-    s(f"## 八、完整清潔作業程序")
+    s(f"## 九、完整清潔作業程序")
     s(f"")
     s(f"### 階段一：施藥（化學清潔）")
     s(f"")
@@ -365,6 +403,7 @@ def main():
     parser.add_argument('--U-clean', type=float, default=50.0, help='乾淨換熱係數 W/m²·K')
     parser.add_argument('--target-loss', type=float, default=10.0, help='清潔門檻效率損失 %')
     parser.add_argument('--pipe-d', type=float, default=9.5, help='管路內徑 mm')
+    parser.add_argument('--face-velocity', type=float, default=1.5, help='蒸發器面風速 (m/s)')
     parser.add_argument('--output', type=str, default=None, help='輸出 markdown 檔案路徑')
     args = parser.parse_args()
 

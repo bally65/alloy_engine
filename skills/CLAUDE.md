@@ -16,6 +16,7 @@
 | `$thermal` | 翅片效率 η、Dittus-Boelter h、alloy_engine κ 整合 | `thermal/SKILL.md` |
 | `$droplet` | Weber/Ohnesorge 數、破碎模式、SMD 估算 | `droplet/SKILL.md` |
 | `$fouling` | Kern-Seaton 積垢模型、清潔週期、TEMA 積垢熱阻 | `fouling/SKILL.md` |
+| `$airflow` | 空氣側壓降、積垢風量衰退、清潔效益量化 | `airflow/SKILL.md` |
 
 ## 共用計算模組
 
@@ -31,6 +32,7 @@ fluidsim_skills/
   thermal.py   ← 翅片效率 η、Dittus-Boelter h、alloy_engine κ 介面
   droplet.py   ← Weber/Ohnesorge 數、SMD 估算
   fouling.py   ← Kern-Seaton 積垢模型、TEMA 積垢熱阻資料庫
+  airflow.py   ← 空氣側壓降（矩形通道）、積垢風量衰退預測
 ```
 
 ## 快速使用

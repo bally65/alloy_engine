@@ -17,6 +17,7 @@ from skills.fluidsim_skills.capillary import capillary_pressure, lucas_washburn_
 from skills.fluidsim_skills.thermal import fin_efficiency, dittus_boelter_h, fin_efficiency_from_kappa
 from skills.fluidsim_skills.droplet import weber_number, ohnesorge_number, droplet_regime, spray_droplet_size, analyse_droplet
 from skills.fluidsim_skills.fouling import kern_seaton_fouling, cleaning_interval, fouling_penalty, analyse_fouling, FOULING_RESISTANCE_DB
+from skills.fluidsim_skills.airflow import air_properties, fin_channel_pressure_drop, fouling_layer_thickness, analyse_airflow
 
 
 # ─── fluid.py 測試 ───────────────────────────────────────────
@@ -552,6 +553,54 @@ class TestWaterUsed:
 
 # ─── 集成測試：comprehensive_report ──────────────────────────
 
+# ─── airflow.py 測試 ────────────────────────────────────────
+
+class TestAirflow:
+    def test_pressure_drop_positive(self):
+        dp, v_max, Re = fin_channel_pressure_drop(1.5, 1.8, 25.0, 0.1)
+        assert dp > 0
+        assert v_max > 1.5   # 最小截面速度 > 面速度
+        assert Re > 0
+
+    def test_higher_velocity_higher_dp(self):
+        dp1, _, _ = fin_channel_pressure_drop(1.0, 1.8, 25.0, 0.1)
+        dp2, _, _ = fin_channel_pressure_drop(3.0, 1.8, 25.0, 0.1)
+        assert dp2 > dp1
+
+    def test_narrower_gap_higher_dp(self):
+        dp1, _, _ = fin_channel_pressure_drop(1.5, 2.5, 25.0, 0.1)
+        dp2, _, _ = fin_channel_pressure_drop(1.5, 1.5, 25.0, 0.1)
+        assert dp2 > dp1
+
+    def test_fouling_increases_dp(self):
+        result = analyse_airflow(1.5, 1.8, 25.0, 0.1, Rf_current=1.4e-4)
+        assert result.pressure_drop_fouled_pa >= result.pressure_drop_clean_pa
+
+    def test_zero_fouling_no_penalty(self):
+        result = analyse_airflow(1.5, 1.8, 25.0, 0.1, Rf_current=0.0)
+        assert result.airflow_reduction_pct == pytest.approx(0.0, abs=1e-6)
+        assert result.fouling_layer_um == pytest.approx(0.0, abs=1e-6)
+
+    def test_fouling_layer_thickness_proportional_to_Rf(self):
+        d1 = fouling_layer_thickness(1e-4, 'dust')
+        d2 = fouling_layer_thickness(2e-4, 'dust')
+        assert abs(d2 / d1 - 2.0) < 1e-9
+
+    def test_air_properties_valid(self):
+        props = air_properties(25.0)
+        assert 1.1 < props.density < 1.3
+        assert props.dynamic_viscosity > 0
+        assert props.prandtl > 0
+
+    def test_invalid_velocity_raises(self):
+        with pytest.raises(ValueError):
+            fin_channel_pressure_drop(0.0, 1.8, 25.0, 0.1)
+
+    def test_invalid_pitch_raises(self):
+        with pytest.raises(ValueError):
+            fin_channel_pressure_drop(1.5, 0.05, 25.0, 0.1)  # pitch < thickness
+
+
 class TestComprehensiveReport:
     def test_generates_without_error(self):
         import sys, os
@@ -575,12 +624,14 @@ class TestComprehensiveReport:
             U_clean = 50.0
             target_loss = 10.0
             pipe_d = 9.5
+            face_velocity = 1.5
 
         report = generate_report(Args())
         assert '摘要' in report
         assert '毛細滲透' in report
         assert '積垢' in report
         assert '翅片效率' in report
+        assert '空氣側壓降' in report
         assert len(report) > 500
 
     def test_all_contamination_types(self):
@@ -603,6 +654,7 @@ class TestComprehensiveReport:
             U_clean = 50.0
             target_loss = 10.0
             pipe_d = 9.5
+            face_velocity = 1.5
 
         for cont in CONTAMINATION_DB.keys():
             Args.equipment = f'測試-{cont}'

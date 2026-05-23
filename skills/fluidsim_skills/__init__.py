@@ -48,3 +48,9 @@ from .fouling import (
     analyse_fouling,
     FOULING_RESISTANCE_DB,
 )
+from .airflow import (
+    air_properties,
+    fin_channel_pressure_drop,
+    fouling_layer_thickness,
+    analyse_airflow,
+)
