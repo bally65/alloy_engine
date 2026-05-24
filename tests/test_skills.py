@@ -663,5 +663,101 @@ class TestComprehensiveReport:
             assert len(report) > 200, f"contamination={cont} 報告異常短"
 
 
+from skills.fluidsim_skills.chemistry import rinse_analysis
+from skills.fluidsim_skills.roi import energy_roi
+from skills.fluidsim_skills.airflow import _FIN_TYPE_CORRECTION
+
+
+# ─── rinse_analysis 測試 ─────────────────────────────────────────────────────
+
+class TestRinseAnalysis:
+    def test_alkaline_cleaner_needs_rinse(self):
+        r = rinse_analysis(cleaner_ph=10.0, cleaner_volume_L=1.0)
+        assert r.total_rinse_L > 0
+        assert r.dilution_factor > 1
+
+    def test_neutral_cleaner_no_rinse_needed(self):
+        r = rinse_analysis(cleaner_ph=7.0, cleaner_volume_L=1.0)
+        assert r.dilution_factor == 1.0
+        assert r.total_rinse_L == 0.0
+
+    def test_acid_cleaner_compliant_after_rinse(self):
+        r = rinse_analysis(cleaner_ph=4.0, cleaner_volume_L=0.5, rounds=3)
+        assert r.estimated_final_ph >= 6.0
+
+    def test_strong_alkali_high_dilution(self):
+        r_mild = rinse_analysis(cleaner_ph=9.5, cleaner_volume_L=1.0)
+        r_strong = rinse_analysis(cleaner_ph=12.0, cleaner_volume_L=1.0)
+        assert r_strong.dilution_factor > r_mild.dilution_factor
+
+    def test_invalid_ph_raises(self):
+        with pytest.raises(ValueError):
+            rinse_analysis(cleaner_ph=15.0, cleaner_volume_L=1.0)
+
+    def test_invalid_volume_raises(self):
+        with pytest.raises(ValueError):
+            rinse_analysis(cleaner_ph=9.0, cleaner_volume_L=0.0)
+
+    def test_more_rounds_same_total_less_per_round(self):
+        r3 = rinse_analysis(cleaner_ph=10.0, cleaner_volume_L=1.0, rounds=3)
+        r6 = rinse_analysis(cleaner_ph=10.0, cleaner_volume_L=1.0, rounds=6)
+        assert abs(r3.total_rinse_L - r6.total_rinse_L) < 0.01  # 總量相同
+        assert r6.volume_per_round_L < r3.volume_per_round_L      # 每輪較少
+
+
+# ─── energy_roi 測試 ─────────────────────────────────────────────────────────
+
+class TestEnergyROI:
+    def test_positive_extra_kwh(self):
+        r = energy_roi(rated_power_kw=1.0, power_increase_pct=5.0)
+        assert r.annual_extra_kwh > 0
+
+    def test_zero_increase_zero_extra(self):
+        r = energy_roi(rated_power_kw=1.0, power_increase_pct=0.0)
+        assert r.annual_extra_kwh == 0.0
+        assert r.payback_months == float('inf')
+
+    def test_higher_increase_higher_kwh(self):
+        r1 = energy_roi(rated_power_kw=1.0, power_increase_pct=2.0)
+        r2 = energy_roi(rated_power_kw=1.0, power_increase_pct=10.0)
+        assert r2.annual_extra_kwh > r1.annual_extra_kwh
+
+    def test_co2_proportional_to_kwh(self):
+        r = energy_roi(rated_power_kw=1.0, power_increase_pct=5.0,
+                       grid_emission_factor=0.5)
+        assert abs(r.co2_reduction_kg - r.annual_extra_kwh * 0.5) < 0.01
+
+    def test_payback_decreases_with_higher_savings(self):
+        r_low  = energy_roi(rated_power_kw=0.5, power_increase_pct=1.0,
+                            cleaning_cost=1500)
+        r_high = energy_roi(rated_power_kw=5.0, power_increase_pct=20.0,
+                            cleaning_cost=1500)
+        assert r_high.payback_months < r_low.payback_months
+
+    def test_invalid_power_raises(self):
+        with pytest.raises(ValueError):
+            energy_roi(rated_power_kw=0.0, power_increase_pct=5.0)
+
+
+# ─── fin_type 修正係數測試 ─────────────────────────────────────────────────────
+
+class TestFinType:
+    def test_plain_lowest_dp(self):
+        dp_p, _, _ = fin_channel_pressure_drop(1.5, 1.8, 25, 0.1, fin_type='plain')
+        dp_w, _, _ = fin_channel_pressure_drop(1.5, 1.8, 25, 0.1, fin_type='wavy')
+        dp_l, _, _ = fin_channel_pressure_drop(1.5, 1.8, 25, 0.1, fin_type='louvered')
+        assert dp_p < dp_w < dp_l
+
+    def test_correction_factors_match_constants(self):
+        dp_p, _, _ = fin_channel_pressure_drop(1.5, 1.8, 25, 0.1, fin_type='plain')
+        dp_l, _, _ = fin_channel_pressure_drop(1.5, 1.8, 25, 0.1, fin_type='louvered')
+        ratio = dp_l / dp_p
+        assert abs(ratio - _FIN_TYPE_CORRECTION['louvered']) < 0.01
+
+    def test_invalid_fin_type_raises(self):
+        with pytest.raises(ValueError):
+            fin_channel_pressure_drop(1.5, 1.8, 25, 0.1, fin_type='spiral')
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

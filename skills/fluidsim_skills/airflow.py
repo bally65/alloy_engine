@@ -94,18 +94,28 @@ def air_properties(temperature_C: float = 25.0) -> AirProperties:
     return AirProperties(t, d, mu, mu / d, pr, k)
 
 
+# 翅片幾何類型壓降修正係數
+# plain=1.00, wavy ≈1.25（Wang et al. 1996）, louvered ≈1.45（Chang & Wang 1997）
+_FIN_TYPE_CORRECTION: dict[str, float] = {
+    'plain':    1.00,
+    'wavy':     1.25,
+    'louvered': 1.45,
+}
+
+
 def fin_channel_pressure_drop(
     face_velocity_ms: float,
     fin_pitch_mm: float,
     fin_height_mm: float,
     fin_thickness_mm: float,
     temperature_C: float = 25.0,
+    fin_type: str = 'plain',
 ) -> tuple[float, float, float]:
     """
-    翅片通道空氣側壓降（簡化矩形通道 Hagen-Poiseuille）。
+    翅片通道空氣側壓降（矩形通道 Hagen-Poiseuille + 幾何修正）。
 
-    假設：平板翅片，通道截面近似矩形，層流或低 Re 過渡流。
-    入口 + 出口損失以 1.3 倍修正係數涵蓋。
+    支援三種翅片幾何：plain（平直）、wavy（波浪）、louvered（百葉）。
+    入口 + 出口損失以 1.3 倍修正係數涵蓋，翅片幾何以額外修正係數乘算。
 
     Args:
         face_velocity_ms:  面風速 (m/s)，必須 > 0
@@ -113,12 +123,13 @@ def fin_channel_pressure_drop(
         fin_height_mm:     翅片深度（氣流方向長度）(mm)
         fin_thickness_mm:  翅片厚度 (mm)
         temperature_C:     空氣溫度 (°C)
+        fin_type:          翅片幾何類型 'plain'|'wavy'|'louvered'
 
     Returns:
         (pressure_drop_pa, max_velocity_ms, reynolds_number)
 
     Raises:
-        ValueError: 任何尺寸 ≤ 0 或面風速 ≤ 0
+        ValueError: 任何尺寸 ≤ 0、面風速 ≤ 0 或 fin_type 不支援
     """
     if face_velocity_ms <= 0:
         raise ValueError(f"面風速必須 > 0，收到 {face_velocity_ms}")
@@ -126,7 +137,10 @@ def fin_channel_pressure_drop(
         raise ValueError("翅片間距必須大於翅片厚度")
     if fin_height_mm <= 0:
         raise ValueError(f"翅片深度必須 > 0，收到 {fin_height_mm}")
+    if fin_type not in _FIN_TYPE_CORRECTION:
+        raise ValueError(f"fin_type 必須為 {list(_FIN_TYPE_CORRECTION)}，收到 '{fin_type}'")
 
+    geom_factor = _FIN_TYPE_CORRECTION[fin_type]
     props = air_properties(temperature_C)
     gap = (fin_pitch_mm - fin_thickness_mm) * 1e-3   # m，通道寬度（實際間隙）
     L   = fin_height_mm * 1e-3                        # m，通道長度（氣流方向）
@@ -149,8 +163,8 @@ def fin_channel_pressure_drop(
     # 直管摩擦損失
     dp_friction = f_darcy * (L / Dh) * (0.5 * props.density * v_max ** 2)
 
-    # 入口/出口損失修正係數（Kc+Ke，平板翅片通道約 1.2–1.4，取 1.3）
-    dp_total = dp_friction * 1.3
+    # 入口/出口損失修正（1.3） × 翅片幾何修正
+    dp_total = dp_friction * 1.3 * geom_factor
 
     return dp_total, v_max, Re
 
@@ -187,6 +201,7 @@ def analyse_airflow(
     Rf_current: float,
     deposit_type: str = 'dust',
     temperature_C: float = 25.0,
+    fin_type: str = 'plain',
 ) -> AirflowResult:
     """
     完整空氣側壓降與積垢風量衰退分析。
@@ -199,13 +214,14 @@ def analyse_airflow(
         Rf_current:        當前積垢熱阻 (m²·K/W)（可由 kern_seaton_fouling 取得）
         deposit_type:      積垢類型 ('dust'|'grease'|'biofilm'|'scale')
         temperature_C:     空氣溫度 (°C)
+        fin_type:          翅片幾何 'plain'|'wavy'|'louvered'
 
     Returns:
         AirflowResult
     """
     # 乾淨翅片壓降
     dp_clean, v_max, Re = fin_channel_pressure_drop(
-        face_velocity_ms, fin_pitch_mm, fin_height_mm, fin_thickness_mm, temperature_C
+        face_velocity_ms, fin_pitch_mm, fin_height_mm, fin_thickness_mm, temperature_C, fin_type
     )
 
     # 積垢層厚度（每側）
@@ -219,7 +235,7 @@ def analyse_airflow(
 
     # 積垢後壓降（以縮小後的 pitch 重新計算）
     dp_fouled, _, _ = fin_channel_pressure_drop(
-        face_velocity_ms, effective_pitch_mm, fin_height_mm, fin_thickness_mm, temperature_C
+        face_velocity_ms, effective_pitch_mm, fin_height_mm, fin_thickness_mm, temperature_C, fin_type
     )
 
     # 壓降增幅

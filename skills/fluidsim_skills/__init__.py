@@ -20,6 +20,7 @@ from .chemistry import (
     surface_forces,
     recommend_cleaner,
     corrosion_risk,
+    rinse_analysis,
     CONTAMINATION_DB,
     CLEANER_DB,
 )
@@ -53,4 +54,9 @@ from .airflow import (
     fin_channel_pressure_drop,
     fouling_layer_thickness,
     analyse_airflow,
+    _FIN_TYPE_CORRECTION,
+)
+from .roi import (
+    energy_roi,
+    EnergyROIReport,
 )

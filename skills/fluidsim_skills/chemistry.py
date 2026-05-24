@@ -552,6 +552,106 @@ def recommend_cleaner(
 
 
 # ---------------------------------------------------------------------------
+# Rinsing / discharge compliance model
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RinseReport:
+    cleaner_ph: float
+    cleaner_volume_L: float
+    dilution_factor: float
+    total_rinse_L: float
+    rounds: int
+    volume_per_round_L: float
+    estimated_final_ph: float
+    compliant: bool          # pH 6–9 排放標準
+    recommendation: str
+
+
+def rinse_analysis(
+    cleaner_ph: float,
+    cleaner_volume_L: float,
+    target_ph_min: float = 6.0,
+    target_ph_max: float = 9.0,
+    rounds: int = 3,
+) -> RinseReport:
+    """
+    計算清潔後沖洗用水量，確保出水 pH 符合排放標準。
+
+    模型：強酸/強鹼稀釋（忽略緩衝效應），加 50% 安全係數。
+    適用：工業廢水排放標準 pH 6–9（CNS 14602 / EPA 放流水標準）。
+
+    Args:
+        cleaner_ph:      清潔液 pH（清洗作業時的實際 pH）
+        cleaner_volume_L: 清潔液總用量 (L)
+        target_ph_min:   排放下限（預設 6.0）
+        target_ph_max:   排放上限（預設 9.0）
+        rounds:          沖洗輪數（每輪平均分配用水）
+
+    Returns:
+        RinseReport
+
+    Raises:
+        ValueError: pH 超出 0–14、用量 ≤ 0、rounds < 1
+    """
+    import math as _math
+    if not (0 < cleaner_ph < 14):
+        raise ValueError(f"pH 必須在 0–14 之間，收到 {cleaner_ph}")
+    if cleaner_volume_L <= 0:
+        raise ValueError(f"清潔液用量必須 > 0，收到 {cleaner_volume_L}")
+    if rounds < 1:
+        raise ValueError(f"沖洗輪數必須 ≥ 1，收到 {rounds}")
+
+    if cleaner_ph > target_ph_max:          # 鹼性 → 降至 target_ph_max
+        delta = cleaner_ph - target_ph_max
+        D = 10 ** delta
+    elif cleaner_ph < target_ph_min:        # 酸性 → 升至 target_ph_min
+        delta = target_ph_min - cleaner_ph
+        D = 10 ** delta
+    else:
+        D = 1.0
+
+    # 理論最少水量 × 1.5 安全係數（實際噴洗效率 < 理論）
+    total_rinse_L = cleaner_volume_L * (D - 1) * 1.5
+    per_round_L = total_rinse_L / rounds if total_rinse_L > 0 else 0.0
+
+    # 估算最終 pH（按總稀釋倍數 D×1.5 計算）
+    effective_D = max(D * 1.5, 1.0)
+    if cleaner_ph > 7:
+        oh = 10 ** (cleaner_ph - 14) / effective_D
+        oh = max(oh, 1e-7)
+        final_ph = 14 + _math.log10(oh)
+    elif cleaner_ph < 7:
+        h = 10 ** (-cleaner_ph) / effective_D
+        h = max(h, 1e-7)
+        final_ph = -_math.log10(h)
+    else:
+        final_ph = 7.0
+
+    compliant = target_ph_min <= final_ph <= target_ph_max
+
+    if compliant:
+        rec = (f"沖洗 {rounds} 輪（每輪 {per_round_L:.1f} L，共 {total_rinse_L:.1f} L），"
+               f"出水 pH ≈ {final_ph:.1f}，符合排放標準（{target_ph_min}–{target_ph_max}）")
+    else:
+        extra = _math.ceil(_math.log(D) / _math.log(2)) - rounds + 1
+        rec = (f"⚠ 現有 {rounds} 輪沖洗不足（出水 pH ≈ {final_ph:.1f}），"
+               f"建議增加至 {rounds + extra} 輪，或加大每輪用水量至 {per_round_L*1.5:.1f} L")
+
+    return RinseReport(
+        cleaner_ph=cleaner_ph,
+        cleaner_volume_L=cleaner_volume_L,
+        dilution_factor=D,
+        total_rinse_L=total_rinse_L,
+        rounds=rounds,
+        volume_per_round_L=per_round_L,
+        estimated_final_ph=final_ph,
+        compliant=compliant,
+        recommendation=rec,
+    )
+
+
+# ---------------------------------------------------------------------------
 # References
 # ---------------------------------------------------------------------------
 # [1] Noyes, A.A. & Whitney, W.R. (1897). "The rate of solution of solid

@@ -15,12 +15,13 @@ from datetime import date
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from fluidsim_skills.cleaning import design_cleaning_system
-from fluidsim_skills.chemistry import recommend_cleaner, corrosion_risk, CONTAMINATION_DB
+from fluidsim_skills.chemistry import recommend_cleaner, corrosion_risk, rinse_analysis, CONTAMINATION_DB
 from fluidsim_skills.capillary import analyse_fin_penetration
 from fluidsim_skills.thermal import fin_efficiency_from_kappa
 from fluidsim_skills.droplet import spray_droplet_size, weber_number, droplet_regime
 from fluidsim_skills.fouling import analyse_fouling, fouling_penalty, FOULING_RESISTANCE_DB
 from fluidsim_skills.airflow import analyse_airflow
+from fluidsim_skills.roi import energy_roi
 from fluidsim_skills.fluid import flowrate_to_velocity, reynolds_number, flow_regime, water_properties
 
 EQUIPMENT_PRESETS = {
@@ -132,6 +133,7 @@ def generate_report(args) -> str:
         'city_water': 'scale', 'coastal_air': 'dust',
         'industrial_air': 'grease', 'kitchen_exhaust': 'grease',
     }
+    fin_type = getattr(args, 'fin_type', 'plain')
     air = analyse_airflow(
         face_velocity_ms=args.face_velocity,
         fin_pitch_mm=fin_spacing,
@@ -139,6 +141,26 @@ def generate_report(args) -> str:
         fin_thickness_mm=args.fin_thickness,
         Rf_current=foul.current_Rf,
         deposit_type=_deposit_map.get(args.environment, 'dust'),
+        fin_type=fin_type,
+    )
+
+    # 9. 沖洗分析
+    from fluidsim_skills.chemistry import CLEANER_DB as _CDB2
+    _cleaner_data = _CDB2.get(_cleaner_key, {})
+    _cleaner_ph = _cleaner_data.get('ph', 9.0)
+    rinse = rinse_analysis(
+        cleaner_ph=_cleaner_ph,
+        cleaner_volume_L=phys.water_used_L * 0.3,   # 施藥量約清洗用水 30%
+        rounds=3,
+    )
+
+    # 10. 能源 ROI
+    rated_power = getattr(args, 'rated_power_kw', 0.75)
+    cleaning_cost_val = getattr(args, 'cleaning_cost', 1500.0)
+    roi = energy_roi(
+        rated_power_kw=rated_power,
+        power_increase_pct=air.power_increase_pct,
+        cleaning_cost=float(cleaning_cost_val),
     )
 
     # 管道流態
@@ -192,6 +214,11 @@ def generate_report(args) -> str:
     risk_icon = {'safe': '✓ 安全', 'low': '→ 低風險', 'medium': '⚠ 中風險', 'high': '⚠ 高風險'}
     s(f"| 腐蝕風險 | pH {corr.ph:.1f}，接觸 {corr.contact_time_min:.0f} min | "
       f"{risk_icon.get(corr.risk_level, corr.risk_level)} |")
+    pb = roi.payback_months
+    s(f"| 清潔 ROI | 年節省 {roi.annual_extra_kwh:.0f} kWh / {roi.annual_extra_cost:.0f} 元 | "
+      f"{'< 1 月回收' if pb < 1 else f'{pb:.1f} 月回收'} |")
+    s(f"| 沖洗合規 | 出水 pH ≈ {rinse.estimated_final_ph:.1f} | "
+      f"{'✓ 符合排放標準' if rinse.compliant else '⚠ 需增加沖洗量'} |")
     s(f"")
 
     # ── 一、設備規格 ─────────────────────────────────────────────────────────
@@ -312,9 +339,11 @@ def generate_report(args) -> str:
     # ── 七、空氣側壓降 ───────────────────────────────────────────────────────
     s(f"---")
     s(f"")
+    fin_type_zh = {'plain': '平直翅片', 'wavy': '波浪翅片', 'louvered': '百葉翅片'}
     s(f"## 七、空氣側壓降與風量衰退（矩形通道 Hagen-Poiseuille）")
     s(f"")
-    s(f"面風速 **{args.face_velocity:.1f} m/s**，翅片間距 **{fin_spacing:.1f} mm**，Re={air.reynolds_number:.0f}")
+    s(f"翅片幾何：**{fin_type_zh.get(fin_type, fin_type)}**，面風速 **{args.face_velocity:.1f} m/s**，"
+      f"翅片間距 **{fin_spacing:.1f} mm**，Re={air.reynolds_number:.0f}")
     s(f"")
     s(f"| 項目 | 乾淨翅片 | 積垢後 | 影響 |")
     s(f"|------|---------|--------|------|")
@@ -329,10 +358,49 @@ def generate_report(args) -> str:
     s(f"> {air.recommendation}")
     s(f"")
 
-    # ── 八、積垢分析 ─────────────────────────────────────────────────────────
+    # ── 八、沖洗合規 ─────────────────────────────────────────────────────────
     s(f"---")
     s(f"")
-    s(f"## 八、積垢狀態分析（Kern-Seaton + TEMA）")
+    s(f"## 八、沖洗廢水合規分析")
+    s(f"")
+    s(f"清潔劑 pH **{rinse.cleaner_ph:.1f}**，施藥量 **{rinse.cleaner_volume_L:.1f} L**，"
+      f"排放標準 pH {rinse.estimated_final_ph:.1f}（目標 6–9）")
+    s(f"")
+    s(f"| 項目 | 數值 |")
+    s(f"|------|------|")
+    s(f"| 需稀釋倍數 | {rinse.dilution_factor:.0f}× |")
+    s(f"| 總沖洗水量 | **{rinse.total_rinse_L:.1f} L** |")
+    s(f"| 建議沖洗輪數 | {rinse.rounds} 輪 × {rinse.volume_per_round_L:.1f} L/輪 |")
+    s(f"| 出水 pH 預估 | {rinse.estimated_final_ph:.1f} |")
+    s(f"| 排放合規 | {'✓ 符合（pH 6–9）' if rinse.compliant else '⚠ 不符合，增加沖洗量'} |")
+    s(f"")
+    s(f"> {rinse.recommendation}")
+    s(f"")
+
+    # ── 九、ROI ──────────────────────────────────────────────────────────────
+    s(f"---")
+    s(f"")
+    s(f"## 九、能源節約與清潔投資回報（ROI）")
+    s(f"")
+    s(f"額定功率 **{roi.rated_power_kw:.2f} kW**，積垢功耗增幅 **{roi.power_increase_pct:.1f}%**，"
+      f"年使用 **{roi.annual_hours:.0f} h**")
+    s(f"")
+    s(f"| 項目 | 數值 |")
+    s(f"|------|------|")
+    s(f"| 積垢每年多耗電 | {roi.annual_extra_kwh:.1f} kWh |")
+    s(f"| 積垢每年多花費 | {roi.annual_extra_cost:.0f} 元 |")
+    s(f"| 清潔費用 | {roi.cleaning_cost:.0f} 元 |")
+    pb_str = f"{roi.payback_months:.1f} 個月" if roi.payback_months < 120 else "效益不顯著"
+    s(f"| 費用回收期 | **{pb_str}** |")
+    s(f"| CO₂ 減排量 | {roi.co2_reduction_kg:.1f} kg/年 |")
+    s(f"")
+    s(f"> {roi.recommendation}")
+    s(f"")
+
+    # ── 十、積垢分析 ─────────────────────────────────────────────────────────
+    s(f"---")
+    s(f"")
+    s(f"## 十、積垢狀態分析（Kern-Seaton + TEMA）")
     s(f"")
     env_info = FOULING_RESISTANCE_DB[args.environment]
     s(f"環境：**{env_info['description']}**　　已運行：**{args.elapsed_hours:.0f} 小時**")
@@ -350,10 +418,10 @@ def generate_report(args) -> str:
     s(f"> {foul.recommendation}")
     s(f"")
 
-    # ── 八、完整作業程序 ─────────────────────────────────────────────────────
+    # ── 十一、完整作業程序 ───────────────────────────────────────────────────
     s(f"---")
     s(f"")
-    s(f"## 九、完整清潔作業程序")
+    s(f"## 十一、完整清潔作業程序")
     s(f"")
     s(f"### 階段一：施藥（化學清潔）")
     s(f"")
@@ -404,6 +472,10 @@ def main():
     parser.add_argument('--target-loss', type=float, default=10.0, help='清潔門檻效率損失 %')
     parser.add_argument('--pipe-d', type=float, default=9.5, help='管路內徑 mm')
     parser.add_argument('--face-velocity', type=float, default=1.5, help='蒸發器面風速 (m/s)')
+    parser.add_argument('--fin-type', type=str, default='plain',
+                        choices=['plain', 'wavy', 'louvered'], help='翅片幾何類型')
+    parser.add_argument('--rated-power', type=float, default=0.75, help='設備額定功率 kW')
+    parser.add_argument('--cleaning-cost', type=float, default=1500.0, help='清潔費用（台幣）')
     parser.add_argument('--output', type=str, default=None, help='輸出 markdown 檔案路徑')
     args = parser.parse_args()
 
