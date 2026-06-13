@@ -169,8 +169,9 @@ class GPUGeneticAlgorithm:
 
     # ── 初始化 ────────────────────────────────────────────────────────────────
     def _init_population(self) -> torch.Tensor:
+        # 順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
         alpha = torch.tensor(
-            [3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4],
+            [3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4, 1.2, 1.0],
             device=self.device,
         ).expand(self.N, -1)
         return torch.distributions.Dirichlet(alpha).sample()
@@ -211,8 +212,9 @@ class GPUGeneticAlgorithm:
         excess_cr = torch.clamp(cr - 0.30, min=0.0) / 0.30
         penalty = penalty * (1.0 - 0.25 * torch.clamp(excess_cr, max=1.0))
 
-        # (Fe+Ni+Co) < 0.40 → 鐵磁基底不足（嚴重懲罰）
-        mag_base = fe + ni + co
+        # (Fe+Ni+Co+Gd) < 0.40 → 鐵磁基底不足（嚴重懲罰）；Gd 為室溫鐵磁體
+        gd = pop[:, _IDX["Gd"]]
+        mag_base = fe + ni + co + gd
         deficit_mag = torch.clamp(0.40 - mag_base, min=0.0) / 0.40
         penalty = penalty * (1.0 - 0.50 * torch.clamp(deficit_mag, max=1.0))
 

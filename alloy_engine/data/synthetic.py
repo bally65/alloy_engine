@@ -42,15 +42,25 @@ def physics_based_properties_batch(
     si = comp[:, ELEMENTS.index("Si")]
     al = comp[:, ELEMENTS.index("Al")]
     v  = comp[:, ELEMENTS.index("V")]
+    gd = comp[:, ELEMENTS.index("Gd")]
+    la = comp[:, ELEMENTS.index("La")]
     n  = comp.shape[0]
 
+    # La-Fe-Si 1:13 相鄰近度（La≈7%, Si≈12%, Fe>0.5 時最強）：tunable 近室溫 Tc
+    la_fe_si = (
+        np.exp(-((la - 0.07) ** 2) / (2 * 0.03 ** 2))
+        * np.exp(-((si - 0.12) ** 2) / (2 * 0.05 ** 2))
+        * (1.0 / (1.0 + np.exp(-(fe - 0.5) * 20.0)))
+    )
+
     # ── Tc (居禮溫度, K) ──────────────────────────────────────────────────────
-    mag_frac = fe + ni + co
+    # Gd 為低 Tc 鐵磁體 (293K)，計入磁性基底
+    mag_frac = fe + ni + co + gd
 
     # Base: 純元素線性混合（對二元合金準）
     base_tc = np.where(
         mag_frac > 0.05,
-        (fe * 1043 + ni * 627 + co * 1400) / np.maximum(mag_frac, 0.01),
+        (fe * 1043 + ni * 627 + co * 1400 + gd * 293) / np.maximum(mag_frac, 0.01),
         50.0,
     )
 
@@ -73,6 +83,8 @@ def physics_based_properties_batch(
     )
 
     tc = (base_tc + fe_co_synergy) * mag_frac - cr_suppress - mn_suppress - dilution + permalloy
+    # La-Fe-Si 1:13 相把 Tc 拉向 ~285K（近室溫 tunable，氫化可再上修，本模型不含 H）
+    tc = tc + la_fe_si * (285.0 - tc) * 0.7
     tc += np.random.normal(0, 25, n)
     tc = np.clip(tc, 50, 1500)
 
@@ -86,13 +98,16 @@ def physics_based_properties_batch(
 
     # ── Br (剩磁, T) — v5.1 calibrated ──────────────────────────────────────
     # Per-element Br contribution (T): Fe=1.40, Ni=0.60, Co=1.80 (Bozorth 1951, Cullity 2009)
-    # Old formula: mag_moment*0.4 → max 1.07 T (pure Fe), no Co synergy
-    BR_ELEM_CONTRIB = np.array([1.40, 0.60, 1.80, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # Gd=1.80（高 mu 室溫鐵磁，飽和極化代理）；La=0（非磁性）
+    # 順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
+    BR_ELEM_CONTRIB = np.array([1.40, 0.60, 1.80, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.80, 0.0])
     br_base = comp @ BR_ELEM_CONTRIB
-    mag_frac = fe + ni + co
+    mag_frac = fe + ni + co + gd
     # Fe-Co Slater-Pauling synergy: Hiperco50 Br=2.40T >> linear pred 1.60T
     fe_co_synergy_br = 0.80 * 4.0 * (fe * co) / (mag_frac ** 2 + 1e-6)
-    br = (br_base + fe_co_synergy_br) * np.random.uniform(0.88, 1.12, n)
+    # La-Fe-Si 1:13 相 Fe 矩增強（Br≈1.2–1.4T）
+    la_fe_si_br = 0.70 * la_fe_si
+    br = (br_base + fe_co_synergy_br + la_fe_si_br) * np.random.uniform(0.88, 1.12, n)
     br = np.clip(br, 0.01, 2.6)
 
     # ── σy (降伏強度, MPa)：固溶強化模型 ─────────────────────────────────────
@@ -177,7 +192,8 @@ def generate_training_data(
     rng = np.random.default_rng(seed)
     np.random.seed(seed)  # physics_based_properties_batch 內部仍用 np.random
 
-    alpha_full = np.array([3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4],
+    # 順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
+    alpha_full = np.array([3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4, 1.2, 1.0],
                           dtype=np.float64)
 
     if sparse:
