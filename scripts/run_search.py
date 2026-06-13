@@ -70,6 +70,9 @@ def parse_args() -> argparse.Namespace:
                    help="Uncertainty penalty 最大佔 fitness 比例（預設 0.10）")
     p.add_argument("--min-delta-m-threshold",    type=float, default=0.20,
                    help="delta_M 硬約束下限 (sweep 分析用，預設 0.20)")
+    p.add_argument("--w-device",                  type=float, default=0.0,
+                   help="整機級目標權重（>0 時 GA 直接最佳化發電機功率密度×效率；"
+                        "thermomagnetic mode 生效）")
     return p.parse_args()
 
 
@@ -120,6 +123,7 @@ def main() -> None:
             uncertainty_weight=args.uncertainty_weight,
             mode=args.mode,
             min_delta_m_threshold=args.min_delta_m_threshold,
+            w_device=args.w_device,
             **cfg,
         )
         t0 = time.time()
@@ -163,6 +167,9 @@ def main() -> None:
             res_entry["top_kappa"]    = info["kappa"].cpu().numpy()[top_idx]
             res_entry["top_M_at_low"] = info["M_at_low"].cpu().numpy()[top_idx]
             res_entry["top_M_at_high"]= info["M_at_high"].cpu().numpy()[top_idx]
+        if "device_score" in info:
+            res_entry["top_device_eta"]   = info["device_eta"].cpu().numpy()[top_idx]
+            res_entry["top_device_power"] = info["device_power_W_m3"].cpu().numpy()[top_idx]
         results[name] = res_entry
 
     # 5. 視覺化
@@ -187,6 +194,9 @@ def main() -> None:
                 row["kappa_WmK"]   = round(float(res["top_kappa"][i]),     1)
                 row["M_at_low_T"]  = round(float(res["top_M_at_low"][i]),  4)
                 row["M_at_high_T"] = round(float(res["top_M_at_high"][i]), 4)
+            if "top_device_eta" in res:
+                row["device_eta_%"]     = round(float(res["top_device_eta"][i]) * 100, 4)
+                row["device_P_kW_m3"]   = round(float(res["top_device_power"][i]) / 1e3, 1)
             row["fitness"]     = round(float(res["top_fit"][i]),    4)
             rows.append(row)
 
