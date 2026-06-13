@@ -116,6 +116,12 @@ class GPUGeneticAlgorithm:
         w_freq:               float = 0.10,        # 含磁滯品質頻率
         L_meters:             float = 1e-3,        # 元件特徵長度 (C1 修改)
         proximity_width_K:    float = 30.0,        # B2 修改：50K→30K
+        # ── 整機級目標 (device-level objective) ───────────────────────────────
+        w_device:             float = 0.0,         # 整機功率密度×效率分數權重（0=停用）
+        device_B_applied_T:   float = 1.4,         # 整機設計：Halbach 永磁場
+        device_regeneration:  float = 0.90,        # 整機設計：固態回熱效率
+        device_utilization:   float = 0.30,        # 整機設計：迴線利用率
+        device_L_meters:      float = 5e-4,        # 整機設計：薄板厚度（高頻）
         # ── analysis flag ─────────────────────────────────────────────────
         min_delta_m_threshold: float = 0.20,       # delta_M 硬約束下限 (sweep 用)
     ) -> None:
@@ -147,6 +153,11 @@ class GPUGeneticAlgorithm:
             self.L_meters       = L_meters
             self.proximity_width_K = proximity_width_K
             self.min_delta_m_threshold = min_delta_m_threshold
+            self.w_device       = w_device
+            self.device_B_applied_T  = device_B_applied_T
+            self.device_regeneration = device_regeneration
+            self.device_utilization  = device_utilization
+            self.device_L_meters     = device_L_meters
         else:
             self.min_strength = min_strength_mpa
             self.weights      = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
@@ -332,6 +343,29 @@ class GPUGeneticAlgorithm:
             + w_st            * strength_score
         )
 
+        # ── 整機級目標：直接最佳化發電機功率密度 × 效率 ──────────────────────────
+        device_info: dict[str, torch.Tensor] = {}
+        if self.w_device > 0.0:
+            from alloy_engine.thermomagnetic.device_score import (
+                device_power_efficiency_score,
+            )
+            dev = device_power_efficiency_score(
+                pop, Ms=br, Tc_K=tc_K, Hc=hc, T_target_C=self.target_tc_celsius,
+                B_applied_T=self.device_B_applied_T,
+                cycle_utilization=self.device_utilization,
+                regenerator_effectiveness=self.device_regeneration,
+                delta_T_window=self.delta_T_window,
+                L_meters=self.device_L_meters,
+                proximity_width_K=self.proximity_width_K,
+                H_external_T=self.device_B_applied_T,
+            )
+            F_base = F_base + self.w_device * dev["device_score"]
+            device_info = {
+                "device_score":       dev["device_score"],
+                "device_eta":         dev["eta"],
+                "device_power_W_m3":  dev["power_density_W_m3"],
+            }
+
         # 硬約束：delta_M < min_delta_m_threshold 視為熱磁應用不可用
         thr = self.min_delta_m_threshold
         low_dM_penalty = torch.where(
@@ -359,6 +393,7 @@ class GPUGeneticAlgorithm:
             "M_at_low":        thermo["M_at_low"],
             "M_at_high":       thermo["M_at_high"],
             "tc_window_score": thermo["tc_window_score"],
+            **device_info,
         }
 
     # ── 適應度（dispatch）─────────────────────────────────────────────────────
