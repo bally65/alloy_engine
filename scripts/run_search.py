@@ -73,6 +73,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--w-device",                  type=float, default=0.0,
                    help="整機級目標權重（>0 時 GA 直接最佳化發電機功率密度×效率；"
                         "thermomagnetic mode 生效）")
+    p.add_argument("--device-matrix",             type=str, default=None,
+                   choices=["Cu", "Al", "alpha-Fe"],
+                   help="複合材料基底（搭配 --w-device，GA 為每候選找最佳基底分率）")
     return p.parse_args()
 
 
@@ -124,6 +127,7 @@ def main() -> None:
             mode=args.mode,
             min_delta_m_threshold=args.min_delta_m_threshold,
             w_device=args.w_device,
+            device_matrix=args.device_matrix,
             **cfg,
         )
         t0 = time.time()
@@ -170,6 +174,8 @@ def main() -> None:
         if "device_score" in info:
             res_entry["top_device_eta"]   = info["device_eta"].cpu().numpy()[top_idx]
             res_entry["top_device_power"] = info["device_power_W_m3"].cpu().numpy()[top_idx]
+            if "device_matrix_frac" in info:
+                res_entry["top_matrix_frac"] = info["device_matrix_frac"].cpu().numpy()[top_idx]
         results[name] = res_entry
 
     # 5. 視覺化
@@ -197,6 +203,8 @@ def main() -> None:
             if "top_device_eta" in res:
                 row["device_eta_%"]     = round(float(res["top_device_eta"][i]) * 100, 4)
                 row["device_P_kW_m3"]   = round(float(res["top_device_power"][i]) / 1e3, 1)
+            if "top_matrix_frac" in res:
+                row["matrix_frac"]      = round(float(res["top_matrix_frac"][i]), 3)
             row["fitness"]     = round(float(res["top_fit"][i]),    4)
             rows.append(row)
 

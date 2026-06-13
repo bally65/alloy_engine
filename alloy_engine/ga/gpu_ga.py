@@ -122,6 +122,7 @@ class GPUGeneticAlgorithm:
         device_regeneration:  float = 0.90,        # 整機設計：固態回熱效率
         device_utilization:   float = 0.30,        # 整機設計：迴線利用率
         device_L_meters:      float = 5e-4,        # 整機設計：薄板厚度（高頻）
+        device_matrix:        Optional[str] = None,  # 複合基底 "Cu"/"Al"/"alpha-Fe"（None=裸相）
         # ── analysis flag ─────────────────────────────────────────────────
         min_delta_m_threshold: float = 0.20,       # delta_M 硬約束下限 (sweep 用)
     ) -> None:
@@ -158,6 +159,7 @@ class GPUGeneticAlgorithm:
             self.device_regeneration = device_regeneration
             self.device_utilization  = device_utilization
             self.device_L_meters     = device_L_meters
+            self.device_matrix       = device_matrix
         else:
             self.min_strength = min_strength_mpa
             self.weights      = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
@@ -349,6 +351,10 @@ class GPUGeneticAlgorithm:
             from alloy_engine.thermomagnetic.device_score import (
                 device_power_efficiency_score,
             )
+            matrix_obj = None
+            if self.device_matrix is not None:
+                from alloy_engine.thermomagnetic.composite import MATRIX_MATERIALS
+                matrix_obj = MATRIX_MATERIALS[self.device_matrix]
             dev = device_power_efficiency_score(
                 pop, Ms=br, Tc_K=tc_K, Hc=hc, T_target_C=self.target_tc_celsius,
                 B_applied_T=self.device_B_applied_T,
@@ -358,6 +364,7 @@ class GPUGeneticAlgorithm:
                 L_meters=self.device_L_meters,
                 proximity_width_K=self.proximity_width_K,
                 H_external_T=self.device_B_applied_T,
+                matrix=matrix_obj,
             )
             F_base = F_base + self.w_device * dev["device_score"]
             device_info = {
@@ -365,6 +372,8 @@ class GPUGeneticAlgorithm:
                 "device_eta":         dev["eta"],
                 "device_power_W_m3":  dev["power_density_W_m3"],
             }
+            if "best_matrix_fraction" in dev:
+                device_info["device_matrix_frac"] = dev["best_matrix_fraction"]
 
         # 硬約束：delta_M < min_delta_m_threshold 視為熱磁應用不可用
         thr = self.min_delta_m_threshold
