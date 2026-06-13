@@ -15,7 +15,9 @@ from alloy_engine.thermomagnetic.generator_design import (
     power_density,
     induced_voltage_rms,
     design_tmg,
+    design_layered_tmg,
     TMGDesignReport,
+    LayeredTMGReport,
 )
 
 
@@ -136,3 +138,55 @@ class TestDesignTMG:
 
     def test_summary_is_string(self):
         assert isinstance(self._baseline().summary(), str)
+
+
+# ─── 分層發電床 ────────────────────────────────────────────
+class TestLayeredTMG:
+    def _layered(self, n=8, **kw):
+        params = dict(
+            T_cold_C=120, T_hot_C=180,
+            layer_delta_M_T=[0.20] * n,
+            rho=7700.0, cp_specific=460.0, kappa=109.0, delta_S_M=0.5,
+            B_applied_T=1.4, cycle_utilization=0.30,
+        )
+        params.update(kw)
+        return design_layered_tmg(**params)
+
+    def test_returns_report(self):
+        r = self._layered()
+        assert isinstance(r, LayeredTMGReport)
+        assert len(r.layer_reports) == 8
+
+    def test_per_layer_span_splits_total(self):
+        r = self._layered(n=8)
+        assert math.isclose(r.per_layer_span_K, 60.0 / 8, rel_tol=1e-9)
+
+    def test_layering_beats_single_layer_no_regen(self):
+        # 層化（窄子溫差）效率優於單層全溫差（同無額外回熱）
+        single = design_tmg(
+            T_cold_C=120, T_hot_C=180, delta_M_T=0.20,
+            rho=7700.0, cp_specific=460.0, kappa=109.0, delta_S_M=0.5,
+            B_applied_T=1.4, regenerator_effectiveness=0.0,
+        )
+        layered = self._layered(n=8, extra_regeneration=0.0)
+        assert layered.eta_material > single.eta_material
+
+    def test_extra_regeneration_improves_efficiency(self):
+        no_reg = self._layered(extra_regeneration=0.0)
+        reg = self._layered(extra_regeneration=0.9)
+        assert reg.eta_material > no_reg.eta_material
+
+    def test_voltages_add_in_series(self):
+        # N 層線圈串聯 → 總電壓約為單層的 N 倍
+        r = self._layered(n=8)
+        per_layer_v = r.layer_reports[0].v_rms_volts
+        assert math.isclose(r.v_rms_volts, sum(x.v_rms_volts for x in r.layer_reports))
+        assert r.v_rms_volts > 5 * per_layer_v
+
+    def test_efficiency_below_carnot(self):
+        r = self._layered()
+        assert 0 < r.eta_material < r.eta_carnot
+
+    def test_empty_layers_raises(self):
+        with pytest.raises(ValueError):
+            self._layered(n=0, layer_delta_M_T=[])

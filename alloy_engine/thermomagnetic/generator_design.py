@@ -302,6 +302,113 @@ def design_tmg(
     )
 
 
+@dataclass
+class LayeredTMGReport:
+    """分層 Tc 梯度堆疊發電床的聚合推算結果。"""
+    n_layers: int
+    T_cold_C: float
+    T_hot_C: float
+    per_layer_span_K: float             # 每層子溫差（層化的主要效率來源）
+    extra_regeneration: float           # 額外固態回熱器（疊加在層化之上）
+    layer_reports: list[TMGDesignReport]
+    eta_material: float                 # 整床效率 ΣW/ΣQ
+    eta_carnot: float
+    eta_relative_carnot: float
+    power_density_W_m3: float           # 體積平均功率密度
+    v_rms_volts: float                  # 各層線圈串聯 → 電壓相加
+
+    def summary(self) -> str:
+        return "\n".join([
+            "═══════════ 分層熱磁發電床 (Layered TMG) ═══════════",
+            f"層數            : {self.n_layers}（Tc 由冷端到熱端梯度排列）",
+            f"總溫差          : {self.T_cold_C:.0f}°C → {self.T_hot_C:.0f}°C",
+            f"每層子溫差      : {self.per_layer_span_K:.1f} K",
+            f"額外固態回熱 ε  : {self.extra_regeneration:.3f}",
+            "─────────── 整床效能 ───────────",
+            f"整床效率 η      : {self.eta_material * 100:.3f} %",
+            f"卡諾上限 η_C    : {self.eta_carnot * 100:.2f} %",
+            f"相對卡諾 η/η_C  : {self.eta_relative_carnot * 100:.1f} %",
+            f"功率密度 P/V    : {self.power_density_W_m3:,.1f} W/m³",
+            f"串聯電壓 V_rms  : {self.v_rms_volts:.2f} V",
+            "═" * 50,
+        ])
+
+
+def design_layered_tmg(
+    *,
+    T_cold_C: float,
+    T_hot_C: float,
+    layer_delta_M_T: list[float],
+    rho: float,
+    cp_specific: float,
+    kappa: float,
+    delta_S_M: float = 0.0,
+    B_applied_T: float = 1.0,
+    cycle_utilization: float = 0.30,
+    extra_regeneration: float = 0.0,
+    plate_thickness_m: float = 1e-3,
+    n_turns_per_layer: int = 200,
+    core_area_m2: float = 1e-4,
+) -> LayeredTMGReport:
+    """
+    分層 Tc 梯度發電床（借鏡分層 AMR 的反向設計）。
+
+    將總溫差均分為 N 段，每段填入 Tc 調至該段局部溫度的材料，使每層都在
+    自己的最佳 delta_M 工作。**層化提升效率的主要機制是「每層只在小子溫差
+    (span/N) 內循環」**——尖銳相變材料在窄溫窗即可得到完整 delta_M，卻只需
+    付出 1/N 的顯熱，這正是分層 AMR 高效的根本原因。
+
+    `extra_regeneration` 是疊加在層化之上、回收每層殘餘顯熱的「額外」固態
+    回熱器（與層化本身的效益分開計，避免重複計算）。
+
+    Args:
+        layer_delta_M_T:    各層的 delta_M（長度=N），代表各層在其局部最佳
+                            Tc、窄子溫窗下的循環磁化變化
+        extra_regeneration: 額外固態回熱器效率 ε∈[0,1)，預設 0（純看層化效益）
+        其餘參數同 design_tmg
+    Returns:
+        LayeredTMGReport
+    """
+    n = len(layer_delta_M_T)
+    if n < 1:
+        raise ValueError("至少需要一層")
+    edges = [T_cold_C + (T_hot_C - T_cold_C) * i / n for i in range(n + 1)]
+    per_layer_span = (T_hot_C - T_cold_C) / n
+
+    reports: list[TMGDesignReport] = []
+    for i, dM in enumerate(layer_delta_M_T):
+        reports.append(design_tmg(
+            T_cold_C=edges[i], T_hot_C=edges[i + 1],
+            delta_M_T=dM, rho=rho, cp_specific=cp_specific, kappa=kappa,
+            delta_S_M=delta_S_M, B_applied_T=B_applied_T,
+            cycle_utilization=cycle_utilization,
+            regenerator_effectiveness=extra_regeneration,
+            plate_thickness_m=plate_thickness_m,
+            n_turns=n_turns_per_layer, core_area_m2=core_area_m2,
+        ))
+
+    w_total = sum(r.w_mag_J_m3 for r in reports)
+    q_total = sum(r.q_in_J_m3 for r in reports)
+    eta = w_total / q_total
+    eta_c = carnot_efficiency(T_cold_C + 273.15, T_hot_C + 273.15)
+    p_vol = sum(r.power_density_W_m3 for r in reports) / n   # 體積平均
+    v_rms = sum(r.v_rms_volts for r in reports)              # 串聯相加
+
+    return LayeredTMGReport(
+        n_layers=n,
+        T_cold_C=T_cold_C,
+        T_hot_C=T_hot_C,
+        per_layer_span_K=per_layer_span,
+        extra_regeneration=extra_regeneration,
+        layer_reports=reports,
+        eta_material=eta,
+        eta_carnot=eta_c,
+        eta_relative_carnot=eta / eta_c,
+        power_density_W_m3=p_vol,
+        v_rms_volts=v_rms,
+    )
+
+
 if __name__ == "__main__":
     # 示範：低溫廢熱情境，以 README 報告的 Fe₆₉Cr₂₁Cu₈Si₂ 代表值推算
     # （delta_M=0.20 T，Fe 系密度/比熱/熱導率代表值）
