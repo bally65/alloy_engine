@@ -27,7 +27,9 @@ Four independent `PropertyMLP` regressors bundled as `SurrogateBundle`.
 
 **Sampling: Sparse Dirichlet (v2.0)**
 
-Each training sample activates 2–8 of the 10 candidate elements, drawn via Poisson(λ=4) clamped to [2, 8]. Elements are selected with probability proportional to alpha = [3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4] (Fe/Ni preferred). Fractional compositions are then drawn from a standard Dirichlet restricted to the active subspace.
+Each training sample activates 2–8 of the 12 candidate elements (10 transition metals + Gd, La rare earths added in the rare-earth expansion), drawn via Poisson(λ=4) clamped to [2, 8]. Elements are selected with probability proportional to alpha = [3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4, 1.2, 1.0] (Fe/Ni preferred; Gd/La moderate). Fractional compositions are then drawn from a standard Dirichlet restricted to the active subspace.
+
+> 註：因 n_active ≥ 2，純單元素配方不在訓練分布內，故 surrogate 對純 Gd / 純 La-Fe-Si 等尖銳相外推不可靠（見「稀土擴張限制」）。
 
 | Parameter | Value |
 |-----------|-------|
@@ -495,7 +497,8 @@ br = np.clip(br, 0.01, 2.5)
 **New formula (v5.1):**
 ```python
 # Per-element Br contribution (T): Fe=1.40, Ni=0.60, Co=1.80 (Bozorth 1951, Cullity 2009)
-BR_ELEM_CONTRIB = np.array([1.40, 0.60, 1.80, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+# 稀土擴張：Gd=1.80（高 mu 室溫鐵磁），La=0；順序 [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
+BR_ELEM_CONTRIB = np.array([1.40, 0.60, 1.80, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.80, 0.0])
 br_base = comp @ BR_ELEM_CONTRIB
 mag_frac = fe + ni + co
 # Fe-Co Slater-Pauling synergy: Hiperco50 Br=2.40T >> linear pred 1.60T

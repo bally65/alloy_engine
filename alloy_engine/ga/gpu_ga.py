@@ -122,6 +122,7 @@ class GPUGeneticAlgorithm:
         device_regeneration:  float = 0.90,        # 整機設計：固態回熱效率
         device_utilization:   float = 0.30,        # 整機設計：迴線利用率
         device_L_meters:      float = 5e-4,        # 整機設計：薄板厚度（高頻）
+        device_matrix:        Optional[str] = None,  # 複合基底 "Cu"/"Al"/"alpha-Fe"（None=裸相）
         # ── analysis flag ─────────────────────────────────────────────────
         min_delta_m_threshold: float = 0.20,       # delta_M 硬約束下限 (sweep 用)
     ) -> None:
@@ -158,6 +159,7 @@ class GPUGeneticAlgorithm:
             self.device_regeneration = device_regeneration
             self.device_utilization  = device_utilization
             self.device_L_meters     = device_L_meters
+            self.device_matrix       = device_matrix
         else:
             self.min_strength = min_strength_mpa
             self.weights      = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
@@ -167,8 +169,9 @@ class GPUGeneticAlgorithm:
 
     # ── 初始化 ────────────────────────────────────────────────────────────────
     def _init_population(self) -> torch.Tensor:
+        # 順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
         alpha = torch.tensor(
-            [3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4],
+            [3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4, 1.2, 1.0],
             device=self.device,
         ).expand(self.N, -1)
         return torch.distributions.Dirichlet(alpha).sample()
@@ -209,8 +212,9 @@ class GPUGeneticAlgorithm:
         excess_cr = torch.clamp(cr - 0.30, min=0.0) / 0.30
         penalty = penalty * (1.0 - 0.25 * torch.clamp(excess_cr, max=1.0))
 
-        # (Fe+Ni+Co) < 0.40 → 鐵磁基底不足（嚴重懲罰）
-        mag_base = fe + ni + co
+        # (Fe+Ni+Co+Gd) < 0.40 → 鐵磁基底不足（嚴重懲罰）；Gd 為室溫鐵磁體
+        gd = pop[:, _IDX["Gd"]]
+        mag_base = fe + ni + co + gd
         deficit_mag = torch.clamp(0.40 - mag_base, min=0.0) / 0.40
         penalty = penalty * (1.0 - 0.50 * torch.clamp(deficit_mag, max=1.0))
 
@@ -349,6 +353,10 @@ class GPUGeneticAlgorithm:
             from alloy_engine.thermomagnetic.device_score import (
                 device_power_efficiency_score,
             )
+            matrix_obj = None
+            if self.device_matrix is not None:
+                from alloy_engine.thermomagnetic.composite import MATRIX_MATERIALS
+                matrix_obj = MATRIX_MATERIALS[self.device_matrix]
             dev = device_power_efficiency_score(
                 pop, Ms=br, Tc_K=tc_K, Hc=hc, T_target_C=self.target_tc_celsius,
                 B_applied_T=self.device_B_applied_T,
@@ -358,6 +366,7 @@ class GPUGeneticAlgorithm:
                 L_meters=self.device_L_meters,
                 proximity_width_K=self.proximity_width_K,
                 H_external_T=self.device_B_applied_T,
+                matrix=matrix_obj,
             )
             F_base = F_base + self.w_device * dev["device_score"]
             device_info = {
@@ -365,6 +374,8 @@ class GPUGeneticAlgorithm:
                 "device_eta":         dev["eta"],
                 "device_power_W_m3":  dev["power_density_W_m3"],
             }
+            if "best_matrix_fraction" in dev:
+                device_info["device_matrix_frac"] = dev["best_matrix_fraction"]
 
         # 硬約束：delta_M < min_delta_m_threshold 視為熱磁應用不可用
         thr = self.min_delta_m_threshold

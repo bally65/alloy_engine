@@ -10,6 +10,7 @@ from alloy_engine.ga.gpu_ga import GPUGeneticAlgorithm
 from alloy_engine.thermomagnetic.device_score import (
     device_power_efficiency_score,
 )
+from alloy_engine.thermomagnetic.composite import MATRIX_MATERIALS
 from alloy_engine.thermomagnetic.reference_materials import (
     REFERENCE_MATERIALS, get, ReferenceMaterial,
 )
@@ -62,6 +63,37 @@ class TestDeviceScore:
         no_reg = device_power_efficiency_score(pop, regenerator_effectiveness=0.0, **kw)
         reg = device_power_efficiency_score(pop, regenerator_effectiveness=0.9, **kw)
         assert (reg["eta"] >= no_reg["eta"]).all()
+
+
+# ─── 複合材料整機目標 ──────────────────────────────────────
+class TestCompositeDeviceScore:
+    def _kw(self, n):
+        return dict(Ms=torch.ones(n), Tc_K=torch.full((n,), 450.0),
+                    Hc=torch.full((n,), 50.0), T_target_C=150.0)
+
+    def test_matrix_mode_returns_fraction(self):
+        pop = _pop(30)
+        out = device_power_efficiency_score(
+            pop, matrix=MATRIX_MATERIALS["Cu"], **self._kw(30))
+        assert "best_matrix_fraction" in out
+        assert out["best_matrix_fraction"].shape == (30,)
+        assert (out["best_matrix_fraction"] >= 0).all()
+        assert (out["best_matrix_fraction"] <= 0.7).all()
+
+    def test_composite_never_worse_than_bare(self):
+        # φ=0 在掃描網格內，故複合最佳分數 >= 裸相分數
+        pop = _pop(30)
+        bare = device_power_efficiency_score(pop, matrix=None, **self._kw(30))
+        comp = device_power_efficiency_score(
+            pop, matrix=MATRIX_MATERIALS["Cu"], **self._kw(30))
+        assert (comp["device_score"] >= bare["device_score"] - 1e-6).all()
+
+    def test_score_in_unit_range_composite(self):
+        pop = _pop(30)
+        out = device_power_efficiency_score(
+            pop, matrix=MATRIX_MATERIALS["Al"], **self._kw(30))
+        assert (out["device_score"] >= 0).all()
+        assert (out["device_score"] <= 1.0).all()
 
 
 # ─── reference materials ───────────────────────────────────
@@ -121,3 +153,14 @@ class TestGADeviceObjective:
         pop, fit, info = ga.run(n_gen=8, verbose=False)
         assert torch.isfinite(fit).all()
         assert len(ga.history["best_fitness"]) == 8
+
+    def test_composite_objective_runs(self):
+        ga = GPUGeneticAlgorithm(
+            predict_fn=self._predict, device=DEVICE,
+            population_size=200, target_tc_celsius=150.0, tc_tolerance=20.0,
+            mode="thermomagnetic", w_device=1.0, device_matrix="Cu",
+        )
+        fit, info = ga.fitness(ga.population)
+        assert torch.isfinite(fit).all()
+        assert "device_matrix_frac" in info
+        assert info["device_matrix_frac"].shape == (200,)

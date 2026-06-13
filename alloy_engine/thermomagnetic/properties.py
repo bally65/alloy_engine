@@ -16,25 +16,25 @@ v5.0 新增：
 import torch
 from alloy_engine.data.elements import ELEMENTS
 
-# 純元素熱導率 (W/m·K)，順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V]
+# 純元素熱導率 (W/m·K)，順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
 KAPPA_PURE = torch.tensor(
-    [80.0, 91.0, 100.0, 94.0, 7.8, 401.0, 138.0, 149.0, 237.0, 31.0],
+    [80.0, 91.0, 100.0, 94.0, 7.8, 401.0, 138.0, 149.0, 237.0, 31.0, 10.6, 13.4],
     dtype=torch.float32,
 )
 
 # ===== v5.0 新增：純元素莫耳比熱 =====
 # 單位: J/(mol·K)，室溫 (~300K) Dulong-Petit 值
-# 順序對應 ELEMENTS = [Fe, Ni, Co, Cr, Mn, Cu, Mo, Si, Al, V]
+# 順序對應 ELEMENTS = [Fe, Ni, Co, Cr, Mn, Cu, Mo, Si, Al, V, Gd, La]
 CP_PURE_MOLAR = torch.tensor(
-    [25.10, 26.07, 24.81, 23.35, 26.32, 24.44, 24.06, 19.79, 24.20, 24.89],
+    [25.10, 26.07, 24.81, 23.35, 26.32, 24.44, 24.06, 19.79, 24.20, 24.89, 37.03, 27.11],
     dtype=torch.float32,
 )
 
 # ===== v5.0 新增：純元素密度 =====
 # 單位: kg/m³（從 g/cm³ × 1000）
-# 順序對應 ELEMENTS = [Fe, Ni, Co, Cr, Mn, Cu, Mo, Si, Al, V]
+# 順序對應 ELEMENTS = [Fe, Ni, Co, Cr, Mn, Cu, Mo, Si, Al, V, Gd, La]
 RHO_PURE_KG_M3 = torch.tensor(
-    [7870.0, 8908.0, 8900.0, 7190.0, 7470.0, 8960.0, 10280.0, 2330.0, 2700.0, 6110.0],
+    [7870.0, 8908.0, 8900.0, 7190.0, 7470.0, 8960.0, 10280.0, 2330.0, 2700.0, 6110.0, 7900.0, 6160.0],
     dtype=torch.float32,
 )
 
