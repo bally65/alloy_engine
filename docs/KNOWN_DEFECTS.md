@@ -13,11 +13,12 @@
 
 | # | 缺陷 | 根因 | 可處理方案 | 分級 |
 |---|---|---|---|---|
-| D1 | Tc sim-to-real 落差（MAE~239°C） | surrogate 學合成公式非實驗值 | 用 NEMAD 真實 Tc 重訓（腳本已就緒，見 PR #5） | ⛔ 需 `external/NEMAD/…csv` |
-| D2 | 稀土外推不可信（純 Gd Tc 預測 103°C vs 20°C） | 合成物理啟發式 + 稀疏取樣不含純元素 | 真實稀土 Tc 重訓；或在合成端加純元素錨點樣本 | 🔶 錨點可做；真值需資料 |
-| D3 | delta_M 無真實來源 | NEMAD 只有 Tc，Br/磁化靠平均場 | Materials Project 磁化資料補 Br | ⛔ 需 MP API key（測得 403） |
+| D1 | ~~Tc sim-to-real 落差~~ | NEMAD CSV 公開可抓（`sumanitani/NEMAD-MagneticML`）→ 真實 Tc 訓練 | ✅ **已解鎖+實證**：合成 R²=−0.17→真實 R²=0.88 |
+| D2 | ~~稀土外推不可信~~（La-Fe-Si 預測 +463°C vs 真值 −57°C） | 真實 NEMAD 含正確稀土 Tc，已可訓練修正 | 🔶 資料已在手；待併入主代理 |
+| D3 | delta_M 無真實來源（Br 靠平均場） | MP DFT 磁化（`mp_magnetization_eval.py` 已可跑）；待 Br 校準 | 🔶 **MP 已通**，量出 bias −0.50T（系統低估）；校準待謹慎處理 |
 
-> D1–D3 是同一個根：**接真實資料**。在那之前，所有絕對數值僅供量級判斷。
+> D1–D3 原本同卡在「接真實資料」——**現已全部連通**（NEMAD 公開可抓、MP key
+> 已驗證可用）。剩下是把真實資料併入主管線並校準（謹慎處理 0K-sat vs 工作溫度）。
 
 ---
 

@@ -76,6 +76,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--device-matrix",             type=str, default=None,
                    choices=["Cu", "Al", "alpha-Fe"],
                    help="複合材料基底（搭配 --w-device，GA 為每候選找最佳基底分率）")
+    p.add_argument("--hybrid-tc",                  type=Path, default=None,
+                   help="真實 NEMAD Tc checkpoint 路徑（如 "
+                        "models/checkpoints/surrogate_nemad_baseline.pt）；"
+                        "啟用後 GA 用真實 Tc + 合成 Hc/Br/σy 搜尋")
     return p.parse_args()
 
 
@@ -90,12 +94,22 @@ def main() -> None:
     logger.info("GA mode: %s", args.mode)
     logger.info("Uncertainty penalty: %s", f"啟用 (n_mc={args.n_mc_samples}, w={args.uncertainty_weight})" if args.enable_uncertainty else "停用")
 
-    # 1. 載入 checkpoint
+    # 1. 載入 checkpoint（可選混合真實 Tc 模型）
     if not args.checkpoint.exists():
         logger.error("找不到 checkpoint：%s  請先執行 train_surrogate.py", args.checkpoint)
         sys.exit(1)
-    bundle = SurrogateBundle.load(args.checkpoint, device=device)
-    logger.info("已載入 checkpoint：%s", args.checkpoint)
+    if args.hybrid_tc is not None:
+        if not args.hybrid_tc.exists():
+            logger.error("找不到真實 Tc checkpoint：%s  請先執行 "
+                         "train_surrogate_nemad_baseline.py", args.hybrid_tc)
+            sys.exit(1)
+        from alloy_engine.models.hybrid import HybridBundle
+        bundle = HybridBundle.load(args.checkpoint, args.hybrid_tc, device=device)
+        logger.info("已載入混合模型：真實 Tc=%s + 合成 Hc/Br/σy=%s",
+                    args.hybrid_tc, args.checkpoint)
+    else:
+        bundle = SurrogateBundle.load(args.checkpoint, device=device)
+        logger.info("已載入 checkpoint：%s", args.checkpoint)
 
     # 2. 決定要跑哪些情境
     if args.scenario == "all":
