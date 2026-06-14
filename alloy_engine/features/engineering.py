@@ -1,12 +1,12 @@
 """
 Oliynyk 風格特徵工程
 
-對任一組成 c ∈ R^10（總和為 1），計算每個元素屬性 p 的：
+對任一組成 c ∈ R^NUM_ELEMENTS（總和為 1），計算每個元素屬性 p 的：
   - 加權平均   mean_p  = Σ c_i p_i
   - 加權變異數 var_p   = Σ c_i (p_i - mean_p)²
   - 存在元素的最大值 / 最小值
 
-最終得到 10 × 4 = 40 維特徵向量。
+最終得到 NUM_PROPS × 4 = 36 維特徵向量（與元素數無關，故加稀土不改維度）。
 """
 import numpy as np
 import torch

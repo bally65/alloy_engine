@@ -18,6 +18,7 @@ from sklearn.metrics import r2_score, mean_absolute_error
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from alloy_engine.config import CHECKPOINT_DIR, DEFAULT_DEVICE
+from alloy_engine.data.elements import ELEMENTS
 from alloy_engine.models.surrogate import SurrogateBundle
 
 logging.basicConfig(
@@ -33,7 +34,8 @@ for _fn in ['Microsoft JhengHei', 'Microsoft YaHei', 'DejaVu Sans']:
         break
 plt.rcParams['axes.unicode_minus'] = False
 
-OUR_ELEMENTS = ['Fe', 'Ni', 'Co', 'Cr', 'Mn', 'Cu', 'Mo', 'Si', 'Al', 'V']
+# 與引擎元素空間同步（單一真實來源），含稀土擴張後的 Gd / La
+OUR_ELEMENTS = list(ELEMENTS)
 ALL_ELEM_COLS = [
     'H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S',
     'Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga',
@@ -48,9 +50,11 @@ NEMAD_PATH  = Path("external/NEMAD/Dataset/FM_with_curie.csv")
 RESULTS_DIR = Path("results")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# ── Famous alloys within our 10-element space ──────────────────────────────────
+# ── Famous alloys within our element space（含稀土 MCE 基準）────────────────────
 # composition given as atomic fractions summing to 1.0
 FAMOUS_ALLOYS = {
+    "Gadolinium (Gd, MCE 基準)": {"Gd": 1.0},
+    "La-Fe-Si (La7Fe80Si13)":  {"La": 0.07, "Fe": 0.80, "Si": 0.13},
     "Permalloy (Ni80Fe20)":    {"Fe": 0.20, "Ni": 0.80},
     "Supermalloy (Ni79Mo5Fe16)": {"Fe": 0.16, "Ni": 0.79, "Mo": 0.05},
     "Mu-Metal (Ni77Fe14Cu5Mo4)": {"Fe": 0.14, "Ni": 0.77, "Cu": 0.05, "Mo": 0.04},
@@ -65,7 +69,13 @@ FAMOUS_ALLOYS = {
 
 
 def load_and_clean() -> pd.DataFrame:
+    if not NEMAD_PATH.exists():
+        raise FileNotFoundError(
+            f"找不到 NEMAD 資料：{NEMAD_PATH}（git-ignored）。請先把資料放到 "
+            f"external/NEMAD/Dataset/ 再執行。"
+        )
     fm = pd.read_csv(NEMAD_PATH)
+    # OTHER_ELEM 已自動排除 Gd/La（OUR_ELEMENTS 含稀土）→ 保留稀土條目
     mask = (fm[OTHER_ELEM] == 0).all(axis=1) & (fm[OUR_ELEMENTS] > 0).any(axis=1)
     df = fm[mask].copy()
     df = df[df['Mean_TC_K'] >= 50]
@@ -78,7 +88,7 @@ def load_and_clean() -> pd.DataFrame:
 
 def predict_tc_C(bundle: SurrogateBundle, compositions: np.ndarray,
                  device: torch.device) -> np.ndarray:
-    """compositions: (N, 10) float32 atomic fractions → predicted Tc in degC."""
+    """compositions: (N, NUM_ELEMENTS) float32 atomic fractions → predicted Tc in degC."""
     comp_t = torch.from_numpy(compositions).to(device)
     with torch.no_grad():
         props = bundle.predict_properties(comp_t)

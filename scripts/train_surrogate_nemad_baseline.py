@@ -1,6 +1,9 @@
 """
-Stage 1: Pure NEMAD baseline — train Tc model on 618 cleaned entries.
+Stage 1: Pure NEMAD baseline — train Tc model on real cleaned entries.
 No synthetic data. Establishes real-data R² baseline for Stage 2 decision.
+
+稀土擴張後：OUR_ELEMENTS 改由 elements.ELEMENTS 衍生（含 Gd/La），清理
+不再排除稀土條目，故樣本數會大於舊版的 618（含 Gd-Fe / La-Fe-Si 等）。
 
 Outputs:
   alloy_engine/models/checkpoints/surrogate_nemad_baseline.pt
@@ -25,6 +28,7 @@ from sklearn.model_selection import train_test_split
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from alloy_engine.config import CHECKPOINT_DIR, DEFAULT_DEVICE
+from alloy_engine.data.elements import ELEMENTS
 from alloy_engine.features.engineering import composition_to_features_np
 from alloy_engine.models.surrogate import PropertyMLP
 
@@ -42,7 +46,8 @@ for _fn in ['Microsoft JhengHei', 'Microsoft YaHei', 'DejaVu Sans']:
         break
 plt.rcParams['axes.unicode_minus'] = False
 
-OUR_ELEMENTS = ['Fe', 'Ni', 'Co', 'Cr', 'Mn', 'Cu', 'Mo', 'Si', 'Al', 'V']
+# 與引擎元素空間同步（單一真實來源），含稀土擴張後的 Gd / La
+OUR_ELEMENTS = list(ELEMENTS)
 ALL_ELEM_COLS = [
     'H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S',
     'Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga',
@@ -59,7 +64,13 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_and_clean() -> pd.DataFrame:
+    if not NEMAD_PATH.exists():
+        raise FileNotFoundError(
+            f"找不到 NEMAD 資料：{NEMAD_PATH}（git-ignored）。請先把資料放到 "
+            f"external/NEMAD/Dataset/ 再執行。"
+        )
     fm = pd.read_csv(NEMAD_PATH)
+    # OTHER_ELEM 已自動排除 Gd/La（OUR_ELEMENTS 含稀土）→ 保留稀土條目
     mask = (fm[OTHER_ELEM] == 0).all(axis=1) & (fm[OUR_ELEMENTS] > 0).any(axis=1)
     df = fm[mask].copy()
     logger.info("After element filter: %d rows", len(df))
@@ -198,7 +209,7 @@ def main() -> None:
     logger.info("Total after cleaning: %d  (Mo: %d, V: %d, Mo|V: %d)",
                 len(df), df.has_Mo.sum(), df.has_V.sum(), df.is_rare.sum())
 
-    # 40-dim Oliynyk features
+    # Oliynyk 統計特徵 (NUM_PROPS×4=36 維，與元素數無關)
     compositions = df[OUR_ELEMENTS].values.astype(np.float32)
     X = composition_to_features_np(compositions, device=None)
     y = df['Mean_TC_K'].values.astype(np.float32)
