@@ -15,7 +15,7 @@
 |---|---|---|---|---|
 | D1 | ~~Tc sim-to-real 落差~~ | NEMAD CSV 公開可抓（`sumanitani/NEMAD-MagneticML`）→ 真實 Tc 訓練 | ✅ **已解鎖+實證**：合成 R²=−0.17→真實 R²=0.88 |
 | D2 | ~~稀土外推不可信~~（La-Fe-Si 預測 +463°C vs 真值 −57°C） | 真實 NEMAD 含正確稀土 Tc，已可訓練修正 | 🔶 資料已在手；待併入主代理 |
-| D3 | delta_M 無真實來源（Br 靠平均場） | MP DFT 磁化（`mp_magnetization_eval.py` 已可跑）；待 Br 校準 | 🔶 **MP 已通**，量出 bias −0.50T（系統低估）；校準待謹慎處理 |
+| D3 | delta_M 無真實來源（Br 靠平均場） | MP DFT 磁化 + 溫度修正模型（`magnetization_correction.py`）做同溫對標 | 🔶 **MP 已通 + 溫度修正已建**：溫度修正後 bias −0.50T→**−0.15T**，證實多源於 0K-vs-室溫而非系統性低估 |
 
 > D1–D3 原本同卡在「接真實資料」——**現已全部連通**（NEMAD 公開可抓、MP key
 > 已驗證可用）。剩下是把真實資料併入主管線並校準（謹慎處理 0K-sat vs 工作溫度）。
