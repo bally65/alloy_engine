@@ -195,17 +195,26 @@ def magnetic_thermodynamic_score(
     Tc_K: torch.Tensor,
     T_target_C: float,
     delta_T_window: float = 30.0,
+    transition_width_K: float | None = None,
 ) -> dict[str, torch.Tensor]:
     """
     計算熱磁循環的關鍵物理量（無 noise，deterministic）.
 
-    M(T) = Ms × clamp(1 - T/Tc, 0, 1)^0.5  (平均場 β=0.5)
+    二階（預設, transition_width_K=None）：平均場 β=0.5
+        M(T) = Ms × clamp(1 - T/Tc, 0, 1)^0.5
+
+    一階（缺陷 D5 修復, transition_width_K=w）：logistic 階梯
+        M(T) = Ms / (1 + exp((T - Tc)/w))
+        w 小（~5K）= 陡降（一階, La-Fe-Si/Mn-Fe-P/Gd5Si2Ge2），同樣 ±窗
+        內 delta_M 顯著大於平均場——後者用錯相變類別會低估這些材料。
 
     Args:
         Ms:            (N,) 飽和磁化代理（surrogate 的 Br 輸出）
         Tc_K:          (N,) 居禮溫度 (K)
         T_target_C:    目標工作溫度 (°C)
         delta_T_window: 循環半溫差 (K)，循環在 [T_target - dT, T_target + dT]
+        transition_width_K: 一階相變過渡寬度 w (K)；None=二階平均場（向後相容）。
+                            為工程假設值，理想上由 M-H 量測校準。
 
     Returns:
         dict with tensors (all shape (N,)):
@@ -221,11 +230,17 @@ def magnetic_thermodynamic_score(
 
     Tc_safe = torch.clamp(Tc_K, min=10.0)
 
-    ratio_low  = torch.clamp(1.0 - T_low_K  / Tc_safe, min=0.0, max=1.0)
-    ratio_high = torch.clamp(1.0 - T_high_K / Tc_safe, min=0.0, max=1.0)
-
-    M_at_low  = Ms * torch.sqrt(ratio_low)
-    M_at_high = Ms * torch.sqrt(ratio_high)
+    if transition_width_K is None:
+        # 二階：平均場 β=0.5
+        ratio_low  = torch.clamp(1.0 - T_low_K  / Tc_safe, min=0.0, max=1.0)
+        ratio_high = torch.clamp(1.0 - T_high_K / Tc_safe, min=0.0, max=1.0)
+        M_at_low  = Ms * torch.sqrt(ratio_low)
+        M_at_high = Ms * torch.sqrt(ratio_high)
+    else:
+        # 一階：logistic 階梯，w 控制陡度
+        w = max(float(transition_width_K), 1e-3)
+        M_at_low  = Ms / (1.0 + torch.exp((T_low_K  - Tc_safe) / w))
+        M_at_high = Ms / (1.0 + torch.exp((T_high_K - Tc_safe) / w))
     delta_M   = M_at_low - M_at_high
 
     # 工程最佳區：Tc 偏高 T_target+25K 為中心，sigma=20K
