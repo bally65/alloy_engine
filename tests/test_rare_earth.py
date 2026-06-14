@@ -68,3 +68,60 @@ class TestRareEarthPhysics:
         comp[:, 0] = 1.0
         tc, hc, br, sy = physics_based_properties_batch(comp)
         assert tc.shape == (5,)
+
+
+class TestRareEarthManufacturability:
+    """D9：稀土氧化/一階脆裂可製造性懲罰（GA 化學約束）。"""
+
+    def _ga(self):
+        from alloy_engine.ga.gpu_ga import GPUGeneticAlgorithm
+
+        def _predict(c):
+            n = c.shape[0]
+            return {k: torch.full((n,), v) for k, v in
+                    (("Tc", 623.0), ("Hc", 50.0), ("Br", 1.0), ("strength", 500.0))}
+
+        return GPUGeneticAlgorithm(
+            predict_fn=_predict, device=torch.device("cpu"),
+            population_size=8, target_tc_celsius=350.0,
+            enable_chemistry_constraints=True,
+        )
+
+    def _pop(self, d: dict) -> torch.Tensor:
+        v = torch.zeros(1, NUM_ELEMENTS)
+        for k, x in d.items():
+            v[0, ELEMENTS.index(k)] = x
+        return v
+
+    def test_rare_earth_free_alloy_unpenalised(self):
+        # Fe-Co 系不含稀土 → 不受 D9 懲罰（懲罰 = 1.0）
+        ga = self._ga()
+        p = ga._chemistry_penalty(self._pop({"Fe": 0.65, "Co": 0.35}))
+        assert torch.isclose(p[0], torch.tensor(1.0), atol=1e-6)
+
+    def test_pure_gd_penalised_but_viable(self):
+        # 純 Gd：受氧化懲罰但仍保留可觀可製造分（~0.75，>0.5）
+        ga = self._ga()
+        p = ga._chemistry_penalty(self._pop({"Gd": 1.0}))
+        # mag_base = Gd = 1.0 ≥ 0.40 → 無基底懲罰，僅氧化懲罰
+        assert 0.70 < p[0].item() < 0.80
+
+    def test_rare_earth_heavy_penalised_more_than_light(self):
+        # 稀土含量越高，可製造懲罰越重（單調）
+        ga = self._ga()
+        light = ga._chemistry_penalty(self._pop({"La": 0.07, "Fe": 0.80, "Si": 0.13}))
+        heavy = ga._chemistry_penalty(self._pop({"La": 0.50, "Fe": 0.40, "Si": 0.10}))
+        assert heavy[0] < light[0]
+
+    def test_la_fe_si_retains_competitive_score(self):
+        # La-Fe-Si（有效一階 MCE 材料）僅被輕罰（>0.90），不被排除
+        ga = self._ga()
+        p = ga._chemistry_penalty(self._pop({"La": 0.07, "Fe": 0.80, "Si": 0.13}))
+        assert p[0].item() > 0.90
+
+    def test_brittle_interaction_active(self):
+        # 稀土 ×(Fe+Si) 交互：同等稀土量下，與 Fe+Si 共存比與 Cu 共存更脆 → 更重罰
+        ga = self._ga()
+        with_fesi = ga._chemistry_penalty(self._pop({"Gd": 0.20, "Fe": 0.70, "Si": 0.10}))
+        with_cu   = ga._chemistry_penalty(self._pop({"Gd": 0.20, "Fe": 0.50, "Cu": 0.30}))
+        assert with_fesi[0] < with_cu[0]
