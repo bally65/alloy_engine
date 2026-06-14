@@ -140,6 +140,29 @@ def power_density(w_mag: float, f_Hz: float) -> float:
     return w_mag * f_Hz
 
 
+def effective_frequency(f_Hz: float, f_max_Hz: float = 50.0) -> float:
+    """
+    工程可達頻率封頂（缺陷 D4 修復）。
+
+    純擴散頻率 f = α/(2L²) 無上限，會讓功率密度模型「κ 永遠有益」（不物理）。
+    實機在高頻受渦流損耗與換熱速率限制，故套用飽和：
+
+        f_eff = f / (1 + f / f_max)
+
+    低頻 f_eff≈f；高頻 f_eff→f_max（κ 邊際效益遞減到零）。
+
+    Args:
+        f_Hz:     純擴散頻率 (Hz)
+        f_max_Hz: 工程上限 (Hz)，AMR/HMR 原型多在 1–10 Hz，預設 50 為寬鬆上限
+    Returns:
+        f_eff: 有效頻率 (Hz)
+    """
+    if f_Hz < 0 or f_max_Hz <= 0:
+        raise ValueError("f_Hz 必須非負且 f_max_Hz 必須為正")
+    return f_Hz / (1.0 + f_Hz / f_max_Hz)
+
+
+
 def induced_voltage_rms(
     n_turns: int,
     delta_M_T: float,
@@ -233,6 +256,7 @@ def design_tmg(
     n_turns: int = 200,
     core_area_m2: float = 1e-4,
     waveform_factor: float = 1.11,
+    f_max_Hz: float = 50.0,
 ) -> TMGDesignReport:
     """
     給定材料熱物性與裝置幾何，推算整台 TMG 的效能（單一設計點）。
@@ -257,9 +281,10 @@ def design_tmg(
         delta_S_M=delta_S_M,
         regenerator_effectiveness=regenerator_effectiveness,
     )
-    # 熱擴散頻率 f = α / (2L²)
+    # 熱擴散頻率 f = α / (2L²)，再套工程可達封頂（D4）
     alpha = kappa / (rho * cp_specific + 1e-9)
-    f_Hz = alpha / (2.0 * plate_thickness_m ** 2)
+    f_raw = alpha / (2.0 * plate_thickness_m ** 2)
+    f_Hz = effective_frequency(f_raw, f_max_Hz)
 
     eta_mat = material_efficiency(w_mag, q_in)
     eta_c = carnot_efficiency(T_cold_K, T_hot_K)
@@ -349,6 +374,7 @@ def design_layered_tmg(
     plate_thickness_m: float = 1e-3,
     n_turns_per_layer: int = 200,
     core_area_m2: float = 1e-4,
+    f_max_Hz: float = 50.0,
 ) -> LayeredTMGReport:
     """
     分層 Tc 梯度發電床（借鏡分層 AMR 的反向設計）。
@@ -385,6 +411,7 @@ def design_layered_tmg(
             regenerator_effectiveness=extra_regeneration,
             plate_thickness_m=plate_thickness_m,
             n_turns=n_turns_per_layer, core_area_m2=core_area_m2,
+            f_max_Hz=f_max_Hz,
         ))
 
     w_total = sum(r.w_mag_J_m3 for r in reports)

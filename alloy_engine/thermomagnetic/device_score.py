@@ -43,6 +43,7 @@ def _device_metrics_from_props(
     delta_M, rho, cp, kappa, delta_S, Hc, Br,
     T_avg_K, delta_T_swing, B_applied_T,
     cycle_utilization, regenerator_effectiveness, L_meters,
+    f_max_Hz=50.0,
 ) -> dict:
     """由有效物性張量計算整機指標（逐元素，支援任意 broadcast 形狀）。"""
     H_app = B_applied_T / MU_0
@@ -52,7 +53,8 @@ def _device_metrics_from_props(
     q_in = sensible + latent + 1e-9
     eta = w_mag / q_in
     alpha = kappa / (rho * cp + 1e-9)
-    f_Hz = alpha / (2.0 * L_meters ** 2)
+    f_raw = alpha / (2.0 * L_meters ** 2)
+    f_Hz = f_raw / (1.0 + f_raw / f_max_Hz)                      # D4：工程可達封頂
     f_quality = quality_frequency_score(f_Hz, Hc=Hc, Br=Br, alpha_loss=0.001)
     power_density = w_mag * f_quality                            # W/m³
     p_score = torch.clamp(power_density / POWER_DENSITY_REF_W_M3, 0.0, 1.0)
@@ -80,6 +82,8 @@ def device_power_efficiency_score(
     proximity_width_K: float = 30.0,
     H_external_T: float = 1.4,
     field_scaling_1T: float = 0.05,
+    f_max_Hz: float = 50.0,
+    transition_width_K: float | None = None,
     matrix: MatrixMaterial | None = None,
     connectivity: float = 0.7,
     n_phi_grid: int = 31,
@@ -110,7 +114,8 @@ def device_power_efficiency_score(
     delta_T_swing = 2.0 * delta_T_window
 
     thermo = magnetic_thermodynamic_score(
-        Ms=Ms, Tc_K=Tc_K, T_target_C=T_target_C, delta_T_window=delta_T_window
+        Ms=Ms, Tc_K=Tc_K, T_target_C=T_target_C, delta_T_window=delta_T_window,
+        transition_width_K=transition_width_K,
     )
     delta_M = thermo["delta_M"]                       # (N,) Tesla
     rho = density_estimate(pop)                       # kg/m³
@@ -126,6 +131,7 @@ def device_power_efficiency_score(
         T_avg_K=T_avg_K, delta_T_swing=delta_T_swing, B_applied_T=B_applied_T,
         cycle_utilization=cycle_utilization,
         regenerator_effectiveness=regenerator_effectiveness, L_meters=L_meters,
+        f_max_Hz=f_max_Hz,
     )
 
     if matrix is None:
