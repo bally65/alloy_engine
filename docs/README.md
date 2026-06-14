@@ -84,6 +84,6 @@ python scripts/evaluate_composite_materials.py
 ## 現況與下一步
 
 - ✅ 已完成：整機模型、製冷對偶、複合材料、稀土擴張、CI、D4/D5 物理修正、
-  真實 Tc 接入 GA。
+  真實 Tc 接入 GA、知識/歷程備份。（全 8 個 PR 已合併進 main）
 - 🔶 進行中：真實 Br 校準（需區分 0K 飽和 vs 工作溫度磁化）。
 - ⛔→🔶 已連通：NEMAD（Tc）、MP（磁化）皆可取用，剩整合與校準。
