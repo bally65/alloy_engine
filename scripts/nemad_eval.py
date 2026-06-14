@@ -114,7 +114,7 @@ def task1_eval(bundle: SurrogateBundle, df: pd.DataFrame, device: torch.device) 
     true_C = df['tc_C'].values
 
     logger.info("=" * 65)
-    logger.info("TASK 1 — Synthetic surrogate evaluated on NEMAD 618 real samples")
+    logger.info("TASK 1 — Synthetic surrogate evaluated on %d NEMAD real samples", len(df))
     logger.info("=" * 65)
 
     results = []
