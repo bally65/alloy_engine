@@ -1,0 +1,37 @@
+name: tests
+
+# 缺陷修復 #7：先前無 CI，元素空間 10→12 的改動曾靜默弄壞 NEMAD 腳本而無人察覺。
+# 本工作流在每次 push / PR 自動跑全套件，攔截此類迴歸。
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies (CPU torch for speed)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install numpy pandas scikit-learn matplotlib pytest
+
+      - name: Run test suite
+        run: python -m pytest tests/ -q
+
+      - name: Smoke-check entrypoint scripts import cleanly
+        run: |
+          python -m py_compile scripts/run_search.py scripts/train_surrogate.py \
+            scripts/nemad_eval.py scripts/train_surrogate_nemad_baseline.py \
+            scripts/simulate_tmg_design.py scripts/evaluate_reference_materials.py \
+            scripts/evaluate_composite_materials.py
