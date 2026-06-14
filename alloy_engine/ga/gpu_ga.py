@@ -185,9 +185,13 @@ class GPUGeneticAlgorithm:
         (Si+Al) > 0.20               軟：>0.20  0.60      DO₃ 脆相
         Mo > 0.08                    軟：>0.08  0.70      μ 相析出
         Cr > 0.30                    軟：>0.30  0.75      σ 相析出
-        (Fe+Ni+Co) < 0.40            硬：<0.40  0.50      鐵磁基底不足
+        (Fe+Ni+Co+Gd) < 0.40         硬：<0.40  0.50      鐵磁基底不足
+        (Gd+La) 氧化/處理            線性      ≤0.25     稀土活性、易氧化（D9）
+        稀土 ×(Fe+Si) 一階脆裂       交互      ≤0.20     La(Fe,Si)₁₃/Gd₅SiGe 脆相（D9）
 
-        超過閾值越多，懲罰越重（線性比例）。
+        超過閾值越多，懲罰越重（線性比例）。稀土懲罰為「漸進」而非硬切——
+        反映惰性氣氛/鈍化/黏結成型的製造成本，但保留有效 MCE 材料
+        （純 Gd ~0.75、La-Fe-Si ~0.96 的可製造分數仍具競爭力）。
         """
         fe  = pop[:, _IDX["Fe"]]
         ni  = pop[:, _IDX["Ni"]]
@@ -217,6 +221,19 @@ class GPUGeneticAlgorithm:
         mag_base = fe + ni + co + gd
         deficit_mag = torch.clamp(0.40 - mag_base, min=0.0) / 0.40
         penalty = penalty * (1.0 - 0.50 * torch.clamp(deficit_mag, max=1.0))
+
+        # ── 稀土可製造性懲罰（D9）──────────────────────────────────
+        # 稀土（Gd/La）活性高、易氧化；一階磁熱相（La-Fe-Si、Gd₅SiGe）脆裂，
+        # 常需氫化/鍍層/黏結成型 → 過去「可製造性」被高估。以漸進懲罰反映
+        # 真實處理成本，但不排除有效 MCE 材料（純 Gd、La-Fe-Si 仍保留可製造分）。
+        la = pop[:, _IDX["La"]]
+        re_total = gd + la
+        # (a) 氧化/處理：稀土含量線性懲罰，純稀土上限罰 0.25（保留 0.75）
+        penalty = penalty * (1.0 - 0.25 * torch.clamp(re_total, max=1.0))
+        # (b) 一階脆裂：稀土與 (Fe+Si) 共存 → La(Fe,Si)₁₃/Gd₅SiGe 型脆相，需黏結
+        fe_si = fe + si
+        brittle = torch.clamp(re_total - 0.03, min=0.0) * torch.clamp(fe_si - 0.50, min=0.0)
+        penalty = penalty * (1.0 - 0.20 * torch.clamp(brittle * 6.0, max=1.0))
 
         # Cu > 20% → 熱磁模式懲罰（Cu 非磁性，稀釋磁矩；工業熱磁合金上限 ~10%）
         if self.mode == "thermomagnetic":
