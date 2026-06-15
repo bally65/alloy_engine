@@ -56,6 +56,7 @@ class LiteratureMCE:
 
     def dS_at_field(self, field_T: float) -> float:
         """估某場強下的 |ΔS_M|：≤2T 用 B^0.7 標度，2–5T 線性內插。"""
+        field_T = max(float(field_T), 0.0)   # 負場無物理意義；避免 (負)**0.7 → 複數
         if field_T <= 2.0:
             return self.dS_2T * (field_T / 2.0) ** 0.7
         frac = min((field_T - 2.0) / 3.0, 1.0)

@@ -40,7 +40,7 @@ def main() -> None:
               f"{r.eta_rel_carnot_mean*100:>9.2f} ± {r.eta_rel_carnot_std*100:<4.2f}")
     print("-" * 80)
     print(" 解讀：")
-    print("  • 誤差條 ~±12% 來自文獻 ΔS/ΔM 的多篇散布（非單點臆測）。")
+    print("  • 誤差條 ~±12% 來自文獻散布：P/V 來自 ΔM（功率僅依 ΔM），η 來自 ΔM 與 ΔS。")
     print("  • 『理想』為 design_tmg 上界；『現實』套 D12 量化的 ~10× 折減。")
     print("  • La-Fe-Si 與 Gd 因高 κ → 高循環頻率 → 高 P/V；一階材料 ΔS 大但 κ 低。")
     print("═" * 80)
