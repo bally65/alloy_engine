@@ -94,7 +94,7 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         note="二階基準；無磁滯但稀土昂貴",
     ),
     "Gd5Si2Ge2": LiteratureMCE(
-        "Gd5Si2Ge2", Tc_K=272.0, dS_2T=14.0, dS_5T=18.5, dT_ad_2T=7.3,
+        "Gd5Si2Ge2", Tc_K=276.0, dS_2T=14.0, dS_5T=18.5, dT_ad_2T=7.3,
         order="1st", hysteresis="moderate",
         approx_atoms={"Gd": 5.0, "Si": 2.0, "Ge": 2.0},
         source="Pecharsky & Gschneidner PRL 1997（巨磁熱發現）",
@@ -111,7 +111,7 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         tc_tunable=True,
     ),
     "(Mn,Fe)2(P,Si)": LiteratureMCE(
-        "(Mn,Fe)2(P,Si)", Tc_K=290.0, dS_2T=14.0, dS_5T=17.6, dT_ad_2T=3.0,
+        "(Mn,Fe)2(P,Si)", Tc_K=300.0, dS_2T=14.0, dS_5T=17.6, dT_ad_2T=3.0,
         order="1st", hysteresis="low (tunable)",
         approx_atoms={"Mn": 1.0, "Fe": 1.0, "P": 0.5, "Si": 0.5},
         source="Tegus et al. Nature 2002；Dung/Brück；Rare Metals 2018 綜述",
