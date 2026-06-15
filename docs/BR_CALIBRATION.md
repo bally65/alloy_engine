@@ -1,0 +1,60 @@
+# Br 真實資料校準：從「無預測力」到「可預測」
+
+> 回應「資料校正 → 可預測方案」：把 Br 從合成（對真實資料 R²≈0）升級為以 Materials
+> Project DFT 磁化訓練的可預測模型。這是 Tc(NEMAD) 故事的「磁化版」。
+> 程式：`build_mp_magnetization_dataset.py`、`train_br_mp_baseline.py`、
+> `alloy_engine/models/real_br.py`。
+
+---
+
+## 1. 問題：合成 Br 對真實磁化沒有預測力
+
+抓 MP 中本 14 元素空間的 **97 個鐵磁(FM)金屬間化合物** 的 DFT 體積磁化（→ Br_0K）：
+
+| 模型 | R²（對真實 MP）| MAE |
+|---|---|---|
+| 合成 Br | **+0.006** | 0.52 T |
+| 線性再校準（synthetic→MP）| +0.05（held-out）| 0.50 T |
+
+→ 合成 Br **幾乎與真實磁化無關**（R²≈0），且**線性再校準無效**——沒有相關性可縮放。
+這與 Tc 的情況相同（合成 −0.17）：再怎麼調合成模型都救不回，唯有換真實資料。
+
+## 2. 解法：以真實資料訓練（與 Tc 同策略）
+
+用 97 個 MP 化合物訓練 GBR（5-fold 交叉驗證）：
+
+| 模型 | CV R² | CV MAE |
+|---|---|---|
+| 合成 Br | +0.006 | 0.52 T |
+| **真實資料 GBR** | **+0.563** | **0.33 T** |
+
+→ **Br 變成可預測**：R² 由 ~0 升到 0.56、MAE 0.52→0.33 T。R² 不如 Tc 的 0.78，因
+本金屬空間的真實磁化資料較稀疏（97 vs 1380），但方向與機制完全一致、且經交叉驗證。
+
+## 3. 如何用於預測（工作溫度）
+
+MP 為 0K 飽和。工作溫度 Br：
+
+```
+Br(T_work) = RealBrModel.predict_Br0K(composition) × m(T_work / Tc)
+```
+
+其中 m(·) 為 `magnetization_correction` 的平均場約化磁化，Tc 取自真實 NEMAD 模型。
+**兩個因子都由真實資料支撐** → 工作溫度 Br 為可辯護的預測（帶 MAE 0.33T 誤差）。
+
+## 4. 誠實限制
+
+- R²=0.56（中等）：97 點的金屬 FM 磁化資料稀疏；擴大資料（更多 chemsys / 放寬
+  e_above_hull）可望提升。
+- MP DFT 磁化本身有 ~0.1–0.3 μB 的方法誤差（GGA+U 等）。
+- 仍只校準了 Br；Hc、σy 無對應公開資料集，維持合成（見能力聲明）。
+
+## 復現
+
+```bash
+python scripts/build_mp_magnetization_dataset.py   # 需 MP key；抓 97 化合物
+python scripts/train_br_mp_baseline.py             # → 合成 0.006 vs 真實 0.563
+```
+
+> 結論：**Tc 與 Br 都已從「合成、無預測力」升級為「真實資料訓練、交叉驗證可預測」**。
+> 這把引擎的兩個關鍵磁性量都變成帶誤差條的預測，而非相對啟發式。

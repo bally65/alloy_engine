@@ -15,7 +15,7 @@
 |---|---|---|---|---|
 | D1 | ~~Tc sim-to-real 落差~~ | NEMAD CSV 公開可抓（`sumanitani/NEMAD-MagneticML`）→ 真實 Tc 訓練 | ✅ **已解鎖+實證**：合成 R²=−0.17→真實 R²=0.88 |
 | D2 | ~~稀土外推不可信~~（La-Fe-Si 預測 +463°C vs 真值 −57°C） | 真實 NEMAD Tc 已「烘焙」進主代理（`scripts/bake_real_tc.py` → 統一 bundle） | ✅ **已併入**：單一 checkpoint = 真實 Tc(R²=0.885)+合成 Hc/Br/σy，消除忘帶 --hybrid-tc 隱患 |
-| D3 | delta_M 無真實來源（Br 靠平均場） | MP DFT 磁化 + 溫度修正模型（`magnetization_correction.py`）做同溫對標 | 🔶 **MP 已通 + 溫度修正已建**：溫度修正後 bias −0.50T→**−0.15T**，證實多源於 0K-vs-室溫而非系統性低估 |
+| D3 | ~~delta_M 無真實來源（Br 靠平均場）~~ | MP DFT 磁化訓練真實 Br baseline（`real_br.py`）+ 溫度修正 | ✅ **已解**：合成 Br R²=0.006→真實資料 GBR **R²=0.56, MAE 0.33T**（97 化合物 CV）；工作溫度 Br = predict×m(T/Tc) |
 
 > D1–D3 原本同卡在「接真實資料」——**現已全部連通**（NEMAD 公開可抓、MP key
 > 已驗證可用）。剩下是把真實資料併入主管線並校準（謹慎處理 0K-sat vs 工作溫度）。
