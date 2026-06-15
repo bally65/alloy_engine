@@ -114,7 +114,9 @@ def main() -> None:
               f"{r['Br_std_T']:>7.3f}{r['acquisition']:>7.2f}  {r['rationale']}｜{comp_s}")
     print("-" * 78)
     print(" 用法：依此清單鑄樣 → VSM/DSC 量 Tc/Br → 比對預測（協定見 MEASUREMENT_PROTOCOL.md）。")
-    print(" 高不確定度 + 高新穎度 = 量測後對模型修正最大。多樣化批次避免做重複實驗。")
+    print(" 定位：找出模型『最沒把握 / 最在外推』的成分作壓力測試/驗證目標。")
+    print(" ⚠ 注意：回顧基準顯示，在當前小資料規模下這不會比隨機更快提升平均精度")
+    print("    （見 active_learning_benchmark.py / docs/ACTIVE_LEARNING.md §6）。")
 
 
 if __name__ == "__main__":
