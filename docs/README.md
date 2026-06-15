@@ -25,6 +25,8 @@
 | [RARE_EARTH_EXPANSION](RARE_EARTH_EXPANSION.md) | 加 Gd/La（10→12 元素）| GA 自主收斂到 Gd 基室溫材料 |
 | [KNOWN_DEFECTS](KNOWN_DEFECTS.md) | 12 項缺陷登錄 + 可處理性分級 | D1–D7 已修；D8–D12 路線圖 |
 | [DATA_SOURCING_ASSESSMENT](DATA_SOURCING_ASSESSMENT.md) | 真實資料調研 + GHA 方案 | NEMAD 公開可抓；MP 已通 |
+| [PIPELINE_REPORT](PIPELINE_REPORT.md) | 生產級全管線正式數字 | 真實 Tc R²=0.78（P/Ge 擴張後）|
+| [MEASUREMENT_PROTOCOL](MEASUREMENT_PROTOCOL.md) | 實測協定（D6/驗證）+ 文獻替代 | 唯實測可解的收尾 |
 
 ## 關鍵量化結果
 
@@ -54,6 +56,9 @@ alloy_engine/models/
 ## 復現指令
 
 ```bash
+# 0. 一鍵生產級全管線（自動選 CUDA/MPS/CPU；Mac M5 用 MPS）→ docs/PIPELINE_REPORT.md
+bash scripts/run_full_pipeline.sh
+
 # 1. 合成代理（14 元素：含 Gd/La 稀土 + P/Ge 類金屬）
 python scripts/train_surrogate.py --n-samples 6000 --epochs 100
 
