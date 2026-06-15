@@ -30,6 +30,7 @@
 | [SENSITIVITY_ANALYSIS](SENSITIVITY_ANALYSIS.md) | 假設參數敏感度（D6）| connectivity 43%、回熱相消；定性穩健 |
 | [BR_CALIBRATION](BR_CALIBRATION.md) | Br 真實資料校準（MP DFT）| 合成 R²≤0 → 真實 R²=0.58、MAE 0.27T |
 | [HC_SIGMA_FEASIBILITY](HC_SIGMA_FEASIBILITY.md) | Hc/σy 可預測性評估 | 外在/製程主導，組成-only 本質受限 → 維持合成 |
+| [ACTIVE_LEARNING](ACTIVE_LEARNING.md) | 主動學習/DoE：先做哪些實驗 | 不確定度×新穎度+多樣批次→橋接實驗 |
 | [LITERATURE_CALIBRATION](LITERATURE_CALIBRATION.md) | 文獻校準 + 最低成本材料（無儀器）| La-Fe-Si/Mn-Fe-P 效能/成本 ×100–200 於 Gd |
 | [CALIBRATED_PREDICTION](CALIBRATED_PREDICTION.md) | 校準後整機預估（帶 ±12% 誤差條）| 點估計 → 可辯護的區間估計 |
 | [CAPABILITY_STATEMENT](CAPABILITY_STATEMENT.md) | 能力聲明：能/不能預測什麼 | 相對可信、絕對帶折減 |
