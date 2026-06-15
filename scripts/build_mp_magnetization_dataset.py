@@ -13,6 +13,7 @@ ordering=FM 且體積磁化>0 者，取最穩定多形體。輸出 external/mp_f
 """
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import sys
@@ -25,10 +26,7 @@ from alloy_engine.data.elements import ELEMENTS
 
 API = "https://api.materialsproject.org/materials/summary/"
 OUT = Path("external/mp_fm_dataset.json")
-MAG_DRIVERS = ["Fe", "Co", "Ni", "Mn", "Gd"]
-KEY_TERNARIES = [["La", "Fe", "Si"], ["Mn", "Fe", "P"], ["Fe", "Co", "Si"],
-                 ["Gd", "Si", "Ge"], ["Mn", "Fe", "Si"], ["Fe", "Ni", "Mn"],
-                 ["Mn", "Fe", "P", "Si"]]
+MAG_DRIVERS = {"Fe", "Co", "Ni", "Mn", "Gd"}   # 磁性主族（系統至少含其一才可能 FM）
 
 
 def get_key() -> str:
@@ -52,14 +50,13 @@ def _query(params: dict, key: str) -> list:
 def build() -> list:
     key = get_key()
     ours = set(ELEMENTS)
-    systems = set(MAG_DRIVERS)
-    partners = ["Fe", "Co", "Ni", "Mn", "Si", "Al", "P", "Ge", "V", "Cr", "Cu", "Gd", "La"]
-    for a in MAG_DRIVERS:
-        for b in partners:
-            if a != b:
-                systems.add("-".join(sorted([a, b])))
-    for t in KEY_TERNARIES:
-        systems.add("-".join(sorted(t)))
+    # 所有含 ≥1 磁性主族的 2-/3-元素系統（放寬後 ~335 系統；FiM 因磁矩抵消難預測而排除，
+    # 只保留 FM——實測 FM-only 擴張 R² 0.56→0.60、MAE 0.33→0.26T）。
+    systems = set()
+    for k in (2, 3):
+        for combo in itertools.combinations(ELEMENTS, k):
+            if set(combo) & MAG_DRIVERS:
+                systems.add("-".join(sorted(combo)))
 
     rows: dict[str, list] = {}
     fields = ("material_id,formula_pretty,elements,"
