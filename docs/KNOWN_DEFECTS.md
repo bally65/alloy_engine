@@ -28,7 +28,7 @@
 |---|---|---|---|
 | D4 | ~~整機頻率 f 無上限 → κ「永遠有益」~~ | `effective_frequency: f_eff=f/(1+f/f_max)`（generator_design + device_score，預設 f_max=50Hz） | ✅ **已修**：複合增益由膨脹的 ×22 收斂到物理的 ×2.4–×10 |
 | D5 | ~~平均場 M(T)=Ms(1−T/Tc)^0.5 不適用一階相變~~ | `magnetic_thermodynamic_score(transition_width_K=w)` logistic 階梯，預設 None=二階向後相容 | ✅ **已修**：一階 delta_M > 平均場（銳度 w 仍需資料校準）|
-| D6 | 複合 κ connectivity=0.7、回熱 ε、利用率 util 皆假設值 | 暴露為可掃描參數 + 真實微結構/M-H 迴線校準 | 🔶 參數化可做；校準需量測 |
+| D6 | 複合 κ connectivity=0.7、回熱 ε、利用率 util 皆假設值 | `sensitivity_analysis.py` 量化敏感度 + `MEASUREMENT_PROTOCOL.md` 校準 | 🔶 **已量化**：connectivity 擺幅 43%（唯一優先實測）、回熱在增益比中相消（0%）；定性結論穩健 |
 | D7 | ~~無 CI／無迴歸防護~~（10→12 曾靜默弄壞 NEMAD 腳本） | 加 GitHub Actions 跑全套件 + 腳本 py_compile | ✅ **已修**（PR #6） |
 
 ---
