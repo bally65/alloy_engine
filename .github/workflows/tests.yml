@@ -39,4 +39,4 @@ jobs:
             scripts/sensitivity_analysis.py scripts/lowest_cost_material.py \
             scripts/recommend_material.py scripts/calibrated_device_report.py \
             scripts/build_mp_magnetization_dataset.py scripts/train_br_mp_baseline.py \
-            scripts/recommend_experiments.py
+            scripts/recommend_experiments.py scripts/active_learning_benchmark.py

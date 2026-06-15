@@ -61,3 +61,21 @@ class TestActiveLearning:
         assert len(recs) == 4
         for r in recs:
             assert {"index", "Tc_C", "Br_T", "Tc_std_K", "acquisition", "rationale"} <= set(r)
+
+
+class TestALBenchmark:
+    def test_simulate_returns_curve(self):
+        """回顧基準機制測試（合成資料；只驗機制，不斷言 AL>random）。"""
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location(
+            "albench", Path(__file__).resolve().parent.parent / "scripts" / "active_learning_benchmark.py")
+        mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(120, 36)).astype(np.float32)
+        y = 2.0 * X[:, 0] + rng.normal(0, 0.1, 120)   # 可學的訊號
+        for strat in ("random", "uncertainty", "diversity"):
+            curve = mod.simulate(X, y, strat, seed=0, max_labels=40)
+            assert len(curve) >= 2
+            assert curve[0][0] == 8 and curve[-1][0] <= 40       # 標註數遞增
+            assert all(isinstance(r, float) for _, r in curve)
