@@ -212,6 +212,13 @@ class SurrogateBundle:
         self._sc_tc_g = _to_gpu_scaler(tc_scaler, self.device)
         return self
 
+    def replace_br_head(self, br_model: PropertyMLP, br_scaler: Scaler) -> "SurrogateBundle":
+        """以真實資料（MP DFT 磁化）訓練的 Br 模型就地替換 Br 頭（D3）。同 replace_tc_head。"""
+        self.mlp_br = br_model.to(self.device).eval()
+        self.sc_br = br_scaler
+        self._sc_br_g = _to_gpu_scaler(br_scaler, self.device)
+        return self
+
     def save(self, path: Path | str) -> None:
         path = Path(path)
         payload: dict[str, Any] = {

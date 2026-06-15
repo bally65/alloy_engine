@@ -40,6 +40,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="把真實 Tc 烘焙進主代理")
     p.add_argument("--bundle", type=Path, default=CHECKPOINT_DIR / "bundle.pt")
     p.add_argument("--tc",     type=Path, default=CHECKPOINT_DIR / "surrogate_nemad_baseline.pt")
+    p.add_argument("--br",     type=Path, default=CHECKPOINT_DIR / "br_mp_baseline.pt",
+                   help="真實 Br checkpoint（torch）；存在則一併烘焙（D3）")
     p.add_argument("--output", type=Path, default=CHECKPOINT_DIR / "bundle_real_tc.pt")
     p.add_argument("--device", type=str,  default=None)
     return p.parse_args()
@@ -79,10 +81,26 @@ def main() -> None:
         logger.error("非 Tc 頭被意外改動，中止")
         sys.exit(1)
 
+    # 一併烘焙真實 Br（D3），若 checkpoint 存在
+    if args.br.exists():
+        bp = torch.load(args.br, map_location=device, weights_only=False)
+        if bp["in_dim"] == bundle_in_dim:
+            br_model = PropertyMLP(bp["in_dim"], bp["hidden"]).to(device)
+            br_model.load_state_dict(bp["model_state"])
+            before_br = bundle.predict_properties(comp)
+            bundle.replace_br_head(br_model, bp["scaler"])
+            br_shift = (bundle.predict_properties(comp)["Br"] - before_br["Br"]).abs().mean().item()
+            logger.info("Br 平均變動 = %.3f T（已烘焙真實 MP Br）", br_shift)
+        else:
+            logger.warning("Br 特徵維度不符，略過 Br 烘焙")
+    else:
+        logger.info("無 br_mp_baseline.pt，僅烘焙 Tc（Br 維持合成）")
+
     bundle.save(args.output)
     real_r2 = payload.get("test_r2_degC")
-    logger.info("已存統一 bundle（真實 Tc%s + 合成 Hc/Br/σy）→ %s",
-                f" R²={real_r2:.3f}" if real_r2 is not None else "", args.output)
+    br_tag = "真實 Br + 合成 Hc/σy" if args.br.exists() else "合成 Hc/Br/σy"
+    logger.info("已存統一 bundle（真實 Tc%s + %s）→ %s",
+                f" R²={real_r2:.3f}" if real_r2 is not None else "", br_tag, args.output)
     logger.info("下游用 run_search.py --checkpoint %s（免 --hybrid-tc）", args.output)
 
 

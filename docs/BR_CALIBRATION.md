@@ -51,7 +51,12 @@ Br(T_work) = RealBrModel.predict_Br0K(composition) × m(T_work / Tc)
 ```
 
 其中 m(·) 為 `magnetization_correction` 的平均場約化磁化，Tc 取自真實 NEMAD 模型。
-**兩個因子都由真實資料支撐** → 工作溫度 Br 為可辯護的預測（帶 MAE 0.33T 誤差）。
+**兩個因子都由真實資料支撐** → 工作溫度 Br 為可辯護的預測（帶 MAE 0.27T 誤差）。
+
+**已整合進預測管線**：`train_br_mp_baseline.py` 另存可烘焙的 torch MLP
+（`br_mp_baseline.pt`，held-out R²≈0.70），`bake_real_tc.py` 用 `replace_br_head`
+把它與真實 Tc 一併烘焙進統一 bundle。故 GA / 整機 / 推薦載入 `bundle_real_tc.pt` 時
+**實際使用真實 Br（非合成）**——不只是「量過」，而是「真的拿來預測」。
 
 ## 4. 誠實限制
 

@@ -85,3 +85,16 @@ class TestReplaceTcHead:
         )
         fit, _ = ga.fitness(ga.population)
         assert fit.shape == (100,) and torch.isfinite(fit).all()
+
+
+def test_replace_br_head():
+    """D3：replace_br_head 換真實 Br 頭，其餘三頭不變。"""
+    b = _make_bundle()
+    comp = _comp(16)
+    before = b.predict_properties(comp)
+    real_br = PropertyMLP(FEAT_DIM)
+    b.replace_br_head(real_br, _scaler())
+    after = b.predict_properties(comp)
+    assert not torch.allclose(before["Br"], after["Br"])      # Br 改變
+    for k in ("Tc", "Hc", "strength"):
+        assert torch.allclose(before[k], after[k])             # 其餘不變

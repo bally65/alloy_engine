@@ -39,12 +39,20 @@ def main() -> None:
     mae_syn = np.mean(np.abs(br_syn - br))
     print(f" 合成 Br vs 真實 MP   : R²={r2_syn:+.3f}  MAE={mae_syn:.2f}T   ← 無預測力")
 
-    # 真實資料訓練的 Br 模型
+    # 真實資料訓練的 Br 模型（GBR；標準 sim-to-real 評估指標）
     model = RealBrModel.train(comps, br)
     print(f" 真實資料訓練 (GBR)   : R²={model.cv_r2:+.3f}  MAE={model.cv_mae:.2f}T   ← 可預測（5-fold CV）")
-    out = CHECKPOINT_DIR / "br_mp_baseline.pkl"
-    model.save(out)
-    print(f" 已存：{out}")
+    model.save(CHECKPOINT_DIR / "br_mp_baseline.pkl")
+
+    # 同時訓練可烘焙的 torch MLP（GPU-native，格式同 Tc baseline，供 bake_real_tc 整合）
+    from alloy_engine.features.engineering import composition_to_features_np
+    from alloy_engine.models.surrogate import train_mlp
+    X = composition_to_features_np(comps.astype("float32"), device=None)
+    mlp, scaler = train_mlp(X, br.astype("float32"), "Br (T)", DEFAULT_DEVICE, epochs=150, hidden=64)
+    torch.save({"model_state": mlp.state_dict(), "scaler": scaler,
+                "in_dim": X.shape[1], "hidden": 64, "target": "Br_T"},
+               CHECKPOINT_DIR / "br_mp_baseline.pt")
+    print(f" 已存：br_mp_baseline.pkl（GBR 分析）+ br_mp_baseline.pt（torch，可烘焙進 bundle）")
     print("═" * 66)
     print(" 結論：與 Tc 相同，Br 唯有以真實資料訓練才有預測力（合成 ~0 → 真實 ~0.56）。")
     print(" 工作溫度 Br = predict_Br0K × m(T/Tc)（magnetization_correction + 真實 Tc）。")
