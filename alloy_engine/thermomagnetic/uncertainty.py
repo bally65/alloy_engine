@@ -16,6 +16,14 @@ from alloy_engine.thermomagnetic import reference_materials as rm
 from alloy_engine.thermomagnetic import literature_mce as lm
 from alloy_engine.thermomagnetic.generator_design import design_tmg
 
+# reference_materials → literature_mce 名稱對應（單一真實來源）
+_REF_TO_LIT = {
+    "Gd (純釓)": "Gd",
+    "Gd5Si2Ge2": "Gd5Si2Ge2",
+    "La(Fe,Si)13H": "La(Fe,Si)13H",
+    "(Mn,Fe)2(P,Si)": "(Mn,Fe)2(P,Si)",
+}
+
 
 @dataclass
 class UQResult:
@@ -54,13 +62,13 @@ def device_performance_with_uncertainty(
     ΔM 與 ΔS_M 以相對不確定度（取自 literature_mce，預設 ±12%）抽常態樣本。
     """
     mat = rm.get(material_name)
-    rel_unc = lm.get(material_name).dS_rel_uncertainty if material_name in lm.LITERATURE_MCE else 0.12
+    # reference_materials 名稱 → literature_mce 名稱（單一真實來源；解決 "Gd (純釓)"≠"Gd"）
+    lit_name = _REF_TO_LIT.get(material_name)
+    rel_unc = lm.get(lit_name).dS_rel_uncertainty if lit_name else 0.12
     rng = np.random.default_rng(seed)
 
-    # 一階材料用文獻 FWHM 校準的 w；二階用平均場（None）
-    w = None
-    if material_name in lm.LITERATURE_MCE and mat.transition == "1st":
-        w = lm.get(material_name).transition_width_w_K()
+    # 註：design_tmg 以 delta_M_T（循環淨極化擺幅）為輸入，本身不取 logistic 銳度 w；
+    # w 的文獻校準用於 GA 材料評分（magnetic_thermodynamic_score），不在此整機路徑。
 
     dM_samples = rng.normal(mat.delta_M_T, mat.delta_M_T * rel_unc, n_samples).clip(min=1e-3)
     dS_samples = rng.normal(mat.delta_S_M, mat.delta_S_M * rel_unc, n_samples).clip(min=0.0)

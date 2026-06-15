@@ -106,6 +106,12 @@ class TestRecommend:
         for n in ("MnAs", "FeRh", "Ni-Mn-Sn (Heusler)"):
             assert n not in top2
 
+    def test_caveat_penalty_actually_bites(self):
+        # 在 MnAs 自己的 Tc(45°C) 附近，若無 caveat 懲罰，MnAs(ΔS=20) 會贏過
+        # Mn-Fe-P(ΔS=14)；懲罰把它壓到 Mn-Fe-P 之下 → 直接驗證懲罰生效（非靠 Tc）。
+        recs = {r.name: r.score for r in self._recs(T_operating_C=45, field_T=2.0)}
+        assert recs["MnAs"] < recs["(Mn,Fe)2(P,Si)"]
+
     def test_rare_earth_free_preference_boosts_mnfep(self):
         from alloy_engine.thermomagnetic.recommend import recommend_material
         base = {r.name: r.score for r in recommend_material(25, field_T=1.5)}
@@ -122,3 +128,18 @@ class TestRecommend:
         # 推薦結果帶 D5 校準 w
         r = self._recs(T_operating_C=80)[0]
         assert 2.0 < r.w_K < 10.0
+
+
+class TestSingleSourceConsistency:
+    def test_reference_materials_dS_matches_literature(self):
+        # 漂移守衛：reference_materials.delta_S_M 應等於 literature_mce.dS_2T（單一真實來源）
+        from alloy_engine.thermomagnetic import reference_materials as rm
+        from alloy_engine.thermomagnetic.uncertainty import _REF_TO_LIT
+        for ref_name, lit_name in _REF_TO_LIT.items():
+            assert rm.get(ref_name).delta_S_M == lm.get(lit_name).dS_2T, \
+                f"{ref_name} ΔS 與文獻 {lit_name} 不一致 → 漂移"
+
+    def test_negative_field_no_complex(self):
+        # dS_at_field 負場應夾到 0，不回傳複數
+        v = lm.get("Gd").dS_at_field(-1.0)
+        assert isinstance(v, float) and v == 0.0
