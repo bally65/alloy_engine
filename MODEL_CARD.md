@@ -16,7 +16,8 @@
   1,380 筆）。執行時抓取、不入版控（repo 無 license）。
 - **磁化/Br（真實）**：Materials Project DFT（266 FM 化合物，需免費 API key）→ 真實 Br
   baseline（GBR, CV R²=0.58, MAE 0.27T；見 `docs/BR_CALIBRATION.md`）。
-- **Hc/σy（合成）**：物理啟發式合成資料（無對應公開資料集，待真實校準）。
+- **Hc/σy（合成，本質受限）**：外在/製程主導性質；組成-only 預測上限低，無乾淨公開
+  組成級資料集（見 `docs/HC_SIGMA_FEASIBILITY.md`）。維持合成，僅作 GA 軟約束。
 - **ΔS_M / 一階銳度 w**：文獻代表值（見 `docs/LITERATURE_CALIBRATION.md`）。
 
 ## 元素空間
