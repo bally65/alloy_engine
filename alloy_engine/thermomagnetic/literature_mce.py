@@ -48,6 +48,16 @@ class LiteratureMCE:
     source: str
     note: str
     rare_earth_free: bool = field(default=False)
+    dSm_fwhm_K: float = field(default=0.0)   # ΔS_M(T) 峰半高全寬 (K)，文獻代表值
+
+    def transition_width_w_K(self) -> float:
+        """
+        由文獻 ΔS_M(T) 峰 FWHM 估 D5 logistic 過渡寬度 w（無儀器校準）。
+
+        logistic M(T)=Ms/(1+exp((T-Tc)/w)) 的 dM/dT 峰 FWHM ≈ 3.5w，而 ΔS_M(T)
+        峰寬與 dM/dT 峰寬同量級，故 w ≈ FWHM_ΔS / 3.5。一階材料 FWHM 窄 → w 小（陡）。
+        """
+        return self.dSm_fwhm_K / 3.5 if self.dSm_fwhm_K > 0 else 0.0
 
     def cost_usd_kg(self) -> float:
         """以質量分率 × 元素價格估原料相對成本（$/kg 量級）。"""
@@ -68,6 +78,7 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         order="2nd", hysteresis="none",
         approx_atoms={"Gd": 1.0},
         source="Dan'kov et al. PRB 1998；Pecharsky & Gschneidner",
+        dSm_fwhm_K=70.0,  # 二階寬峰
         note="二階基準；無磁滯但稀土昂貴",
     ),
     "Gd5Si2Ge2": LiteratureMCE(
@@ -75,6 +86,7 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         order="1st", hysteresis="moderate",
         approx_atoms={"Gd": 5.0, "Si": 2.0, "Ge": 2.0},
         source="Pecharsky & Gschneidner PRL 1997（巨磁熱發現）",
+        dSm_fwhm_K=12.0,  # 一階窄峰
         note="巨磁熱聖杯；Ge 使成本極高、有磁滯",
     ),
     "La(Fe,Si)13H": LiteratureMCE(
@@ -82,6 +94,7 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         order="1st", hysteresis="low",
         approx_atoms={"La": 1.0, "Fe": 11.5, "Si": 1.5},
         source="Fujita et al. PRB 2003；Brück 綜述 2011；APL 101,162406(2012)",
+        dSm_fwhm_K=20.0,  # 一階
         note="Tc 可由氫化調 200–400K；氫化降磁滯；La 為廉價稀土",
     ),
     "(Mn,Fe)2(P,Si)": LiteratureMCE(
@@ -89,6 +102,7 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         order="1st", hysteresis="low (tunable)",
         approx_atoms={"Mn": 1.0, "Fe": 1.0, "P": 0.5, "Si": 0.5},
         source="Tegus et al. Nature 2002；Dung/Brück；Rare Metals 2018 綜述",
+        dSm_fwhm_K=25.0,  # 一階（可調）
         note="無稀土、巨磁熱；磁滯可由 Co/Ni/B/V/N 摻雜調低",
         rare_earth_free=True,
     ),

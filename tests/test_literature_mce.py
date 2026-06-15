@@ -25,6 +25,38 @@ class TestLiteratureData:
         assert not lm.get("Gd").rare_earth_free
 
 
+class TestTransitionWidthCalibration:
+    def test_first_order_sharper_than_gd(self):
+        # 一階材料 w 應遠小於二階 Gd（更陡的相變）
+        w_gd = lm.get("Gd").transition_width_w_K()
+        for n in ("Gd5Si2Ge2", "La(Fe,Si)13H", "(Mn,Fe)2(P,Si)"):
+            assert lm.get(n).transition_width_w_K() < w_gd
+
+    def test_first_order_w_physical_range(self):
+        # 一階 w 落在 ~2–10K（與 D5 docstring 的 ~5K 一致）
+        for n in ("Gd5Si2Ge2", "La(Fe,Si)13H", "(Mn,Fe)2(P,Si)"):
+            w = lm.get(n).transition_width_w_K()
+            assert 2.0 < w < 10.0
+
+    def test_w_scales_with_fwhm(self):
+        # w 與 FWHM 單調
+        ms = sorted(lm.LITERATURE_MCE.values(), key=lambda m: m.dSm_fwhm_K)
+        ws = [m.transition_width_w_K() for m in ms]
+        assert ws == sorted(ws)
+
+    def test_calibrated_w_sharpens_delta_m(self):
+        # 用文獻 w 的一階 logistic，比平均場在 Tc 附近給更大 delta_M
+        import torch
+        from alloy_engine.thermomagnetic.properties import magnetic_thermodynamic_score
+        Ms = torch.tensor([1.0]); Tc = torch.tensor([293.0])  # 室溫 Tc(K) ≈ 20°C
+        T_target_C, win = 20.0, 15.0                          # 循環跨越 Tc
+        w = lm.get("La(Fe,Si)13H").transition_width_w_K()
+        mean_field = magnetic_thermodynamic_score(Ms, Tc, T_target_C=T_target_C, delta_T_window=win)
+        first_order = magnetic_thermodynamic_score(Ms, Tc, T_target_C=T_target_C,
+                                                   delta_T_window=win, transition_width_K=w)
+        assert first_order["delta_M"].item() > mean_field["delta_M"].item()
+
+
 class TestCostAnalysis:
     def test_ge_makes_gd5sige_expensive(self):
         # Ge ~$1200/kg → Gd5Si2Ge2 應為最貴
