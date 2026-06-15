@@ -248,8 +248,12 @@ class SurrogateBundle:
         dropout_rate = payload.get("dropout_rate", 0.0)  # backwards-compatible
 
         def _build(key: str) -> PropertyMLP:
-            m = PropertyMLP(in_dim, hidden, dropout_rate).to(device)
-            m.load_state_dict(payload[key])
+            # 每頭的 hidden 由其 state_dict 推得（net.0.weight 形狀 = (hidden, in_dim)），
+            # 故各頭可有不同寬度（如烘焙進來的真實 Tc/Br 頭與合成頭寬度不同也能載入）。
+            sd = payload[key]
+            h = sd["net.0.weight"].shape[0] if "net.0.weight" in sd else hidden
+            m = PropertyMLP(in_dim, h, dropout_rate).to(device)
+            m.load_state_dict(sd)
             return m
 
         element_matrix_t = torch.from_numpy(get_element_matrix()).to(device)

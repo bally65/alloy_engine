@@ -98,3 +98,18 @@ def test_replace_br_head():
     assert not torch.allclose(before["Br"], after["Br"])      # Br 改變
     for k in ("Tc", "Hc", "strength"):
         assert torch.allclose(before[k], after[k])             # 其餘不變
+
+
+def test_save_load_heterogeneous_head_hidden(tmp_path):
+    """迴歸：烘焙進不同 hidden 的頭（如 hidden=64 的真實 Br）後 save/load 仍須成功。
+    （先前 load 對所有頭用單一 hidden=128 → Br(64) 維度不符崩潰。）"""
+    b = _make_bundle()                       # 各頭 hidden=128
+    b.replace_br_head(PropertyMLP(FEAT_DIM, hidden=64), _scaler())
+    comp = _comp(10); ref = b.predict_properties(comp)
+    p = tmp_path / "het.pt"; b.save(p)
+    rl = SurrogateBundle.load(p, device=DEVICE)
+    assert rl.mlp_br.net[0].out_features == 64
+    assert rl.mlp_tc.net[0].out_features == 128
+    out = rl.predict_properties(comp)
+    for k in ("Tc", "Hc", "Br", "strength"):
+        assert torch.allclose(ref[k], out[k], atol=1e-5)
