@@ -64,10 +64,15 @@ python scripts/train_surrogate_nemad_baseline.py        # → R²≈0.88
 python scripts/nemad_eval.py                            # 合成 vs 真實 Tc
 python scripts/mp_magnetization_eval.py                 # 合成 Br vs MP（需 MP key）
 
-# 4. GA 用真實 Tc + 整機/複合目標搜尋
+# 4a. 把真實 Tc 烘焙進主代理 → 單一統一 bundle（D2，免 --hybrid-tc）
+python scripts/bake_real_tc.py   # → checkpoints/bundle_real_tc.pt
+
+# 4b. GA 用真實 Tc + 整機/複合目標搜尋（兩種等價路徑）
 python scripts/run_search.py --scenario 低溫廢熱_150C --mode thermomagnetic \
-    --hybrid-tc alloy_engine/models/checkpoints/surrogate_nemad_baseline.pt \
+    --checkpoint alloy_engine/models/checkpoints/bundle_real_tc.pt \
     --w-device 1.0 --device-matrix Cu
+#   或保留兩檔、推論期混合：
+#   ... --hybrid-tc alloy_engine/models/checkpoints/surrogate_nemad_baseline.pt
 
 # 5. 設計模擬與 what-if
 python scripts/simulate_tmg_design.py

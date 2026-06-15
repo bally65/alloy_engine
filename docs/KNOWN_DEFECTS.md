@@ -14,7 +14,7 @@
 | # | 缺陷 | 根因 | 可處理方案 | 分級 |
 |---|---|---|---|---|
 | D1 | ~~Tc sim-to-real 落差~~ | NEMAD CSV 公開可抓（`sumanitani/NEMAD-MagneticML`）→ 真實 Tc 訓練 | ✅ **已解鎖+實證**：合成 R²=−0.17→真實 R²=0.88 |
-| D2 | ~~稀土外推不可信~~（La-Fe-Si 預測 +463°C vs 真值 −57°C） | 真實 NEMAD 含正確稀土 Tc，已可訓練修正 | 🔶 資料已在手；待併入主代理 |
+| D2 | ~~稀土外推不可信~~（La-Fe-Si 預測 +463°C vs 真值 −57°C） | 真實 NEMAD Tc 已「烘焙」進主代理（`scripts/bake_real_tc.py` → 統一 bundle） | ✅ **已併入**：單一 checkpoint = 真實 Tc(R²=0.885)+合成 Hc/Br/σy，消除忘帶 --hybrid-tc 隱患 |
 | D3 | delta_M 無真實來源（Br 靠平均場） | MP DFT 磁化 + 溫度修正模型（`magnetization_correction.py`）做同溫對標 | 🔶 **MP 已通 + 溫度修正已建**：溫度修正後 bias −0.50T→**−0.15T**，證實多源於 0K-vs-室溫而非系統性低估 |
 
 > D1–D3 原本同卡在「接真實資料」——**現已全部連通**（NEMAD 公開可抓、MP key
@@ -51,9 +51,9 @@
 2. **D4 + D5（✅ 已做，本 PR）**：兩個純公式的物理保真度修正，直接提升對一階
    磁熱材料（最有價值那批）的描述正確性；D4 讓複合增益回到物理量級。
 3. **D9（✅ 已做）**：補稀土脆性/氧化漸進懲罰，讓 GA 不再高估稀土配方的可製造性。
-4. **D1–D3（🔶 已連通，待整合校準）**：NEMAD CSV 與 MP key 皆已驗證可用。
-   真實 Tc 已接進 GA（HybridBundle, R²=0.88）；剩 D2 併入主代理、D3 Br 校準
-   （需謹慎處理 0K 飽和 vs 工作溫度，否則把 delta_M 推錯方向）。
+4. **D1–D3（✅ 主要已處理）**：NEMAD CSV 與 MP key 皆已驗證可用。
+   真實 Tc 已接進 GA（HybridBundle）並**烘焙進統一 bundle**（D2, R²=0.885）；
+   D3 Br 已建溫度修正模型（bias −0.50T→−0.15T）。剩真實 Br 完整入管線（謹慎）。
 
 ---
 
