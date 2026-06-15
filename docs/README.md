@@ -78,6 +78,7 @@ python scripts/run_search.py --scenario 低溫廢熱_150C --mode thermomagnetic 
 python scripts/simulate_tmg_design.py
 python scripts/evaluate_reference_materials.py
 python scripts/evaluate_composite_materials.py
+python scripts/evaluate_reference_devices.py   # 發電側對標真實 TMG 原型（D12）
 ```
 
 ## 資料來源（git-ignored，不入版控）
@@ -89,6 +90,8 @@ python scripts/evaluate_composite_materials.py
 ## 現況與下一步
 
 - ✅ 已完成：整機模型、製冷對偶、複合材料、稀土擴張、CI、D4/D5 物理修正、
-  真實 Tc 接入 GA、知識/歷程備份。（全 8 個 PR 已合併進 main）
-- 🔶 進行中：真實 Br 校準（需區分 0K 飽和 vs 工作溫度磁化）。
-- ⛔→🔶 已連通：NEMAD（Tc）、MP（磁化）皆可取用，剩整合與校準。
+  D9 稀土可製造性、真實 Tc 接入 GA 並烘焙進統一 bundle（D2）、D3 磁化溫度修正、
+  D12 發電側原型對標、GHA sim-to-real 基準、知識/歷程備份。
+- 🔶 進行中：真實 Br 完整入管線（謹慎，需 0K 飽和→工作溫度）；
+  D8（P/Ge 元素 + La-Fe-Si-H 氫化）為最後一塊覆蓋擴張。
+- ⛔→🔶 已連通：NEMAD（Tc）、MP（磁化）皆可取用並已用於對標/烘焙。

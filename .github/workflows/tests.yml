@@ -35,4 +35,4 @@ jobs:
             scripts/nemad_eval.py scripts/train_surrogate_nemad_baseline.py \
             scripts/simulate_tmg_design.py scripts/evaluate_reference_materials.py \
             scripts/evaluate_composite_materials.py scripts/mp_magnetization_eval.py \
-            scripts/bake_real_tc.py
+            scripts/bake_real_tc.py scripts/evaluate_reference_devices.py
