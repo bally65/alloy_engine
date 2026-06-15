@@ -88,3 +88,13 @@ class TestOptimalMatrixFraction:
         lo_k = optimal_matrix_fraction(Tc_C=27.0, matrix=CU, **PHASE)
         assert hi_k.best_matrix_fraction < lo_k.best_matrix_fraction
         assert hi_k.power_gain < lo_k.power_gain
+
+
+def test_zero_phase_kappa_no_crash():
+    """缺陷修復：磁熱相 κ=0 不應 ZeroDivisionError（與 device_score torch 路徑一致）。"""
+    from alloy_engine.thermomagnetic.composite import composite_properties, MATRIX_MATERIALS
+    r = composite_properties(
+        phase_delta_M_T=0.5, phase_cp=400, phase_rho=7000, phase_kappa=0.0,
+        phase_delta_S_M=2.0, matrix=MATRIX_MATERIALS["Cu"],
+        matrix_volume_fraction=0.3, connectivity=1.0)
+    assert r["kappa"] >= 0.0  # 不崩潰、有限值

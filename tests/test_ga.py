@@ -61,3 +61,18 @@ def test_history_monotone_best(ga):
     best = ga.history["best_fitness"]
     # 不要求嚴格遞增（有噪聲），但最後值不應低於第一個值的 0.5 倍
     assert best[-1] >= best[0] * 0.5
+
+
+def test_fitness_nan_guard():
+    """缺陷修復：surrogate 輸出 NaN 不應污染 fitness 的 argsort/argmax 選擇。"""
+    import torch
+    from alloy_engine.ga.gpu_ga import GPUGeneticAlgorithm
+    def nan_predict(c):
+        n = c.shape[0]
+        tc = torch.full((n,), 600.0); tc[0] = float("nan")  # 一個 NaN Tc
+        return {"Tc": tc, "Hc": torch.full((n,), 50.0),
+                "Br": torch.full((n,), 1.0), "strength": torch.full((n,), 500.0)}
+    ga = GPUGeneticAlgorithm(predict_fn=nan_predict, device=torch.device("cpu"),
+                             population_size=50, target_tc_celsius=300.0)
+    fit, _ = ga.fitness(ga.population)
+    assert torch.isfinite(fit).all()  # 無 NaN/Inf

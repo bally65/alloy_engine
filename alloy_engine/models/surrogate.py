@@ -84,7 +84,9 @@ def train_mlp(
     opt   = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
 
-    best_r2, best_state = -np.inf, None
+    # best_state 預設為初始權重，確保 epochs<30（評估區間從未觸發）時不會是 None
+    best_r2 = -np.inf
+    best_state = {k: v.clone() for k, v in model.state_dict().items()}
     for ep in range(epochs):
         model.train()
         perm = torch.randperm(Xtr.size(0), device=device)
@@ -96,7 +98,8 @@ def train_mlp(
             opt.step()
         sched.step()
 
-        if (ep + 1) % 30 == 0:
+        # 每 30 epoch 評估，且最後一個 epoch 必評（避免漏掉末段訓練 / epochs<30）
+        if (ep + 1) % 30 == 0 or ep == epochs - 1:
             model.eval()
             with torch.no_grad():
                 pred_norm = model(Xte).cpu().numpy()
