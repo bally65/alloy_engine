@@ -58,4 +58,10 @@
 | #6–#7 | CI workflow、D4/D5 物理修正 |
 | #8 | 資料調研、NEMAD 真實 Tc（R²=0.88）、MP 磁化評估、HybridBundle、知識備份 |
 
-測試 217 項通過，CI 於 GitHub runner 實證綠燈。
+測試 290+ 項通過，CI 於 GitHub runner 實證綠燈。
+
+> 後續（PR #9–#17）：D9 稀土可製造性、D3 溫度修正、D2 烘焙、D8 P/Ge、D12 原型對標、
+> D6 敏感度、文獻校準 + 不確定度、最低成本材料、端到端推薦、設計案例、論文初稿、
+> 工程打包，以及兩輪 code-review 審查（近期改動 + 核心模組）修掉的真實缺陷
+> （composite κ=0 崩潰、surrogate epochs<30 崩潰、NaN 選擇污染等）。
+> 完整文件索引見 README.md。

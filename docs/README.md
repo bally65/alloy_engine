@@ -28,10 +28,14 @@
 | [PIPELINE_REPORT](PIPELINE_REPORT.md) | 生產級全管線正式數字 | 真實 Tc R²=0.78（P/Ge 擴張後）|
 | [MEASUREMENT_PROTOCOL](MEASUREMENT_PROTOCOL.md) | 實測協定（D6/驗證）+ 文獻替代 | 唯實測可解的收尾 |
 | [SENSITIVITY_ANALYSIS](SENSITIVITY_ANALYSIS.md) | 假設參數敏感度（D6）| connectivity 43%、回熱相消；定性穩健 |
+| [BR_CALIBRATION](BR_CALIBRATION.md) | Br 真實資料校準（MP DFT）| 合成 R²≤0 → 真實 R²=0.58、MAE 0.27T |
 | [LITERATURE_CALIBRATION](LITERATURE_CALIBRATION.md) | 文獻校準 + 最低成本材料（無儀器）| La-Fe-Si/Mn-Fe-P 效能/成本 ×100–200 於 Gd |
 | [CALIBRATED_PREDICTION](CALIBRATED_PREDICTION.md) | 校準後整機預估（帶 ±12% 誤差條）| 點估計 → 可辯護的區間估計 |
 | [CAPABILITY_STATEMENT](CAPABILITY_STATEMENT.md) | 能力聲明：能/不能預測什麼 | 相對可信、絕對帶折減 |
 | [PAPER_OUTLINE](PAPER_OUTLINE.md) | 論文/論文框架 + 貢獻 | 可發表/可交的學術成果 |
+| [PAPER_DRAFT](PAPER_DRAFT.md) | 論文初稿（摘要/方法/結果/限制）| 嵌入真實數字與圖 |
+| [case_study/CASE_STUDY_150C](case_study/CASE_STUDY_150C.md) | 150°C 廢熱完整設計案例 | GA→複合→整機→驗證 |
+| [../MODEL_CARD](../MODEL_CARD.md) | 模型卡（用途/限制/信心）| 對外交接 |
 
 ## 關鍵量化結果
 

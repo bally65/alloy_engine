@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alloy-engine"
+version = "1.0.0"
+description = "熱磁能量轉換材料與整機的計算設計、真實資料/文獻校準與不確定度框架"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "scikit-learn>=1.4",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+# 文件/簡報產生（非核心）
+docs = ["python-pptx>=1.0", "python-docx>=1.0"]
+notebook = ["jupyter", "seaborn>=0.13"]
+
+[tool.setuptools.packages.find]
+include = ["alloy_engine*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
