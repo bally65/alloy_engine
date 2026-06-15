@@ -32,6 +32,9 @@
 | [CALIBRATED_PREDICTION](CALIBRATED_PREDICTION.md) | 校準後整機預估（帶 ±12% 誤差條）| 點估計 → 可辯護的區間估計 |
 | [CAPABILITY_STATEMENT](CAPABILITY_STATEMENT.md) | 能力聲明：能/不能預測什麼 | 相對可信、絕對帶折減 |
 | [PAPER_OUTLINE](PAPER_OUTLINE.md) | 論文/論文框架 + 貢獻 | 可發表/可交的學術成果 |
+| [PAPER_DRAFT](PAPER_DRAFT.md) | 論文初稿（摘要/方法/結果/限制）| 嵌入真實數字與圖 |
+| [case_study/CASE_STUDY_150C](case_study/CASE_STUDY_150C.md) | 150°C 廢熱完整設計案例 | GA→複合→整機→驗證 |
+| [../MODEL_CARD](../MODEL_CARD.md) | 模型卡（用途/限制/信心）| 對外交接 |
 
 ## 關鍵量化結果
 
