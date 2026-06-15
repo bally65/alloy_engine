@@ -49,6 +49,14 @@ class LiteratureMCE:
     note: str
     rare_earth_free: bool = field(default=False)
     dSm_fwhm_K: float = field(default=0.0)   # ΔS_M(T) 峰半高全寬 (K)，文獻代表值
+    tc_tunable: bool = field(default=False)  # Tc 可調（如氫化/摻雜）以對齊工作溫度
+
+    def dS_at_field(self, field_T: float) -> float:
+        """估某場強下的 |ΔS_M|：≤2T 用 B^0.7 標度，2–5T 線性內插。"""
+        if field_T <= 2.0:
+            return self.dS_2T * (field_T / 2.0) ** 0.7
+        frac = min((field_T - 2.0) / 3.0, 1.0)
+        return self.dS_2T + frac * (self.dS_5T - self.dS_2T)
 
     def transition_width_w_K(self) -> float:
         """
@@ -96,6 +104,7 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         source="Fujita et al. PRB 2003；Brück 綜述 2011；APL 101,162406(2012)",
         dSm_fwhm_K=20.0,  # 一階
         note="Tc 可由氫化調 200–400K；氫化降磁滯；La 為廉價稀土",
+        tc_tunable=True,
     ),
     "(Mn,Fe)2(P,Si)": LiteratureMCE(
         "(Mn,Fe)2(P,Si)", Tc_K=290.0, dS_2T=14.0, dS_5T=17.6, dT_ad_2T=3.0,
@@ -104,6 +113,7 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         source="Tegus et al. Nature 2002；Dung/Brück；Rare Metals 2018 綜述",
         dSm_fwhm_K=25.0,  # 一階（可調）
         note="無稀土、巨磁熱；磁滯可由 Co/Ni/B/V/N 摻雜調低",
+        tc_tunable=True,
         rare_earth_free=True,
     ),
 }

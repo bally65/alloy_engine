@@ -86,3 +86,36 @@ class TestScript:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         mod.main()  # 不應拋例外
+
+
+class TestRecommend:
+    def _recs(self, **kw):
+        from alloy_engine.thermomagnetic.recommend import recommend_material
+        return recommend_material(**kw)
+
+    def test_cheap_tunable_wins(self):
+        recs = self._recs(T_operating_C=80, field_T=2.0)
+        # 便宜 + 可調 + 高 ΔS 的一階材料應排前二
+        assert {recs[0].name, recs[1].name} == {"La(Fe,Si)13H", "(Mn,Fe)2(P,Si)"}
+
+    def test_expensive_ranks_last(self):
+        recs = self._recs(T_operating_C=80, field_T=2.0)
+        # Gd5Si2Ge2（Ge 貴）應墊底
+        assert recs[-1].name == "Gd5Si2Ge2"
+
+    def test_rare_earth_free_preference_boosts_mnfep(self):
+        from alloy_engine.thermomagnetic.recommend import recommend_material
+        base = {r.name: r.score for r in recommend_material(25, field_T=1.5)}
+        pref = {r.name: r.score for r in recommend_material(25, field_T=1.5, prefer_rare_earth_free=True)}
+        # 偏好無稀土 → Mn-Fe-P 分數相對提升
+        assert pref["(Mn,Fe)2(P,Si)"] / pref["La(Fe,Si)13H"] > base["(Mn,Fe)2(P,Si)"] / base["La(Fe,Si)13H"]
+
+    def test_higher_field_higher_score(self):
+        lo = self._recs(T_operating_C=80, field_T=1.0)[0].dS_at_field
+        hi = self._recs(T_operating_C=80, field_T=2.0)[0].dS_at_field
+        assert hi > lo
+
+    def test_w_attached_from_literature(self):
+        # 推薦結果帶 D5 校準 w
+        r = self._recs(T_operating_C=80)[0]
+        assert 2.0 < r.w_K < 10.0
