@@ -14,8 +14,8 @@
 ## 訓練資料
 - **Tc（真實）**：NEMAD `FM_with_curie.csv`（15,577 FM 化合物；過濾到本 14 元素空間後
   1,380 筆）。執行時抓取、不入版控（repo 無 license）。
-- **磁化/Br（真實）**：Materials Project DFT（261 FM 化合物，需免費 API key）→ 真實 Br
-  baseline（GBR, CV R²=0.60, MAE 0.26T；見 `docs/BR_CALIBRATION.md`）。
+- **磁化/Br（真實）**：Materials Project DFT（266 FM 化合物，需免費 API key）→ 真實 Br
+  baseline（GBR, CV R²=0.58, MAE 0.27T；見 `docs/BR_CALIBRATION.md`）。
 - **Hc/σy（合成）**：物理啟發式合成資料（無對應公開資料集，待真實校準）。
 - **ΔS_M / 一階銳度 w**：文獻代表值（見 `docs/LITERATURE_CALIBRATION.md`）。
 
@@ -28,7 +28,7 @@
 | 材料相對排序 | 🟢 高 | GA 行為 + 文獻 + 真實 Tc 一致 |
 | Tc | 🟡🟢 | 真實 NEMAD R²=0.78、MAE 91°C |
 | ΔS_M / w | 🟡 | 文獻 ±12% |
-| Br | 🟡🟢 | 真實 MP 訓練 GBR R²=0.60、MAE 0.26T（vs 合成 0.006）|
+| Br | 🟡🟢 | 真實 MP 訓練 GBR R²=0.58、MAE 0.27T（vs 合成 ≤0（無預測力））|
 | 整機 η | 🟡 | 對標真實原型 ~2× 內 |
 | 整機絕對 P/V | 🔴 | 理想化上界，~10× 高 |
 
