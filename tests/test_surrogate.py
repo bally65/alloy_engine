@@ -97,3 +97,13 @@ def test_surrogate_contract_composition_sums(bundle):
     out  = bundle.predict_properties(comp)
     for k, v in out.items():
         assert not torch.isnan(v).any(), f"{k} 含有 NaN"
+
+
+def test_train_mlp_low_epochs_no_crash():
+    """缺陷修復：epochs<30（評估區間從未觸發）不應因 best_state=None 而崩潰。"""
+    import numpy as np, torch
+    from alloy_engine.models.surrogate import train_mlp
+    X = np.random.rand(120, 36).astype(np.float32)
+    y = np.random.rand(120).astype(np.float32)
+    model, scaler = train_mlp(X, y, "t", torch.device("cpu"), epochs=5)
+    assert model is not None and len(scaler) == 5

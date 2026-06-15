@@ -106,7 +106,7 @@ def heat_input_density(
     if min(rho, cp_specific, delta_T_swing_K, T_avg_K) < 0:
         raise ValueError("熱物性與溫度輸入必須為非負值")
     sensible = rho * cp_specific * delta_T_swing_K * (1.0 - regenerator_effectiveness)
-    latent = rho * T_avg_K * delta_S_M
+    latent = rho * T_avg_K * max(delta_S_M, 0.0)   # ΔS_M<0 非物理，夾為 0 避免 q_in 變負
     return sensible + latent
 
 
@@ -270,6 +270,8 @@ def design_tmg(
     Returns:
         TMGDesignReport
     """
+    if T_hot_C <= T_cold_C:
+        raise ValueError("T_hot 必須大於 T_cold")   # 先檢查，避免 q_in=0 時誤報「q_in 必須為正」
     T_cold_K = T_cold_C + 273.15
     T_hot_K = T_hot_C + 273.15
     T_avg_K = 0.5 * (T_cold_K + T_hot_K)

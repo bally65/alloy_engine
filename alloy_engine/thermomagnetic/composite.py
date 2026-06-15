@@ -91,7 +91,12 @@ def composite_properties(
     delta_S_eff = phase_delta_S_M * (m_phase / m_tot)
 
     k_par = f_phase * phase_kappa + phi * matrix.kappa
-    k_ser = 1.0 / (f_phase / phase_kappa + phi / matrix.kappa)
+    # 串聯下限：任一相 κ=0 → 串聯熱阻無窮 → k_ser=0（與 device_score 的 torch 路徑一致，
+    # 後者靠 IEEE inf→0；此處顯式守衛避免 ZeroDivisionError）
+    if phase_kappa <= 0.0 or matrix.kappa <= 0.0:
+        k_ser = 0.0
+    else:
+        k_ser = 1.0 / (f_phase / phase_kappa + phi / matrix.kappa)
     kappa_eff = connectivity * k_par + (1.0 - connectivity) * k_ser
 
     return {

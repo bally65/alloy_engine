@@ -95,7 +95,7 @@ def delta_s_m_estimate(
     - 忽略一階相變（Fe/Ni/Co 系均為二階，不影響）
 
     Args:
-        compositions:      (N, 10) atomic fractions
+        compositions:      (N, NUM_ELEMENTS) atomic fractions
         Tc_K:              (N,) 居禮溫度 (K)
         T_target_C:        目標工作溫度 (°C)
         Ms:                (N,) 飽和磁化代理 (T)
@@ -133,7 +133,7 @@ def thermal_efficiency_score(
     校準依據（field_scaling_1T=0.05 後）:
     - 典型 Fe-Ni: ΔS_M ≈ 2-4 J/(kg·K), Cp ≈ 450-500 J/(kg·K)
     - raw = ΔS_M/Cp ≈ 0.004-0.009
-    - typical_ratio = 0.008 對應 Gd-class (ΔS_M=4, Cp=500)
+    - 上限 cap = 0.04 以 Gd-class 為錨點 (Gd@1T: ΔS_M=10, Cp=240 → ratio≈0.042)
     - score 範圍 ≈ 0.25-1.0 for Fe-based alloys (有效區分訊號)
     """
     raw = delta_S_M / (Cp_specific + 1e-6)
@@ -183,7 +183,7 @@ def thermal_conductivity_estimate(compositions: torch.Tensor) -> torch.Tensor:
     線性混合估算合金熱導率 κ (W/m·K).
 
     Args:
-        compositions: (N, 10) atomic fractions, on any device
+        compositions: (N, NUM_ELEMENTS) atomic fractions, on any device
     Returns:
         kappa: (N,) 估算熱導率
     """

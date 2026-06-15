@@ -444,9 +444,12 @@ class GPUGeneticAlgorithm:
             tc_std = None
 
         if self.mode == "thermomagnetic":
-            return self._fitness_thermomagnetic(pop, preds)
+            fit, info = self._fitness_thermomagnetic(pop, preds)
         else:
-            return self._fitness_softmag(pop, preds, tc_std)
+            fit, info = self._fitness_softmag(pop, preds, tc_std)
+        # 防護：surrogate 若輸出 NaN/Inf，避免污染 argsort/argmax 的精英選擇
+        fit = torch.nan_to_num(fit, nan=0.0, posinf=0.0, neginf=0.0)
+        return fit, info
 
     # ── 遺傳算子 ──────────────────────────────────────────────────────────────
     def _tournament_select(

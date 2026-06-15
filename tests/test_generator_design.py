@@ -190,3 +190,20 @@ class TestLayeredTMG:
     def test_empty_layers_raises(self):
         with pytest.raises(ValueError):
             self._layered(n=0, layer_delta_M_T=[])
+
+
+def test_equal_temps_gives_clear_error():
+    """缺陷修復：T_cold==T_hot 應報「T_hot 必須大於 T_cold」，非誤導的 q_in 訊息。"""
+    import pytest
+    from alloy_engine.thermomagnetic.generator_design import design_tmg
+    with pytest.raises(ValueError, match="T_hot 必須大於 T_cold"):
+        design_tmg(T_cold_C=150, T_hot_C=150, delta_M_T=0.2, rho=7700,
+                   cp_specific=460, kappa=109)
+
+
+def test_negative_delta_s_m_clamped():
+    """缺陷修復：ΔS_M<0（非物理）應夾為 0，q_in 不變負。"""
+    from alloy_engine.thermomagnetic.generator_design import heat_input_density
+    q = heat_input_density(rho=7700, cp_specific=460, delta_T_swing_K=10.0,
+                           T_avg_K=423, delta_S_M=-5.0)
+    assert q > 0.0
