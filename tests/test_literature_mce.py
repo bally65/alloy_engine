@@ -139,6 +139,15 @@ class TestSingleSourceConsistency:
             assert rm.get(ref_name).delta_S_M == lm.get(lit_name).dS_2T, \
                 f"{ref_name} ΔS 與文獻 {lit_name} 不一致 → 漂移"
 
+    def test_reference_materials_Tc_matches_literature(self):
+        # 漂移守衛（擴及 Tc）：兩模組的 Tc 應在 ±1K（°C↔K 取整誤差）內一致
+        from alloy_engine.thermomagnetic import reference_materials as rm
+        from alloy_engine.thermomagnetic.uncertainty import _REF_TO_LIT
+        for ref_name, lit_name in _REF_TO_LIT.items():
+            tc_ref = rm.get(ref_name).Tc_C + 273.15
+            assert abs(tc_ref - lm.get(lit_name).Tc_K) <= 1.0, \
+                f"{ref_name} Tc 與文獻 {lit_name} 漂移：{tc_ref:.0f}K vs {lm.get(lit_name).Tc_K:.0f}K"
+
     def test_negative_field_no_complex(self):
         # dS_at_field 負場應夾到 0，不回傳複數
         v = lm.get("Gd").dS_at_field(-1.0)
