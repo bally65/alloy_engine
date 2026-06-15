@@ -59,9 +59,10 @@ class TestTransitionWidthCalibration:
 
 class TestCostAnalysis:
     def test_ge_makes_gd5sige_expensive(self):
-        # Ge ~$1200/kg → Gd5Si2Ge2 應為最貴
+        # Ge ~$1200/kg → Gd5Si2Ge2 昂貴（>$100/kg）；FeRh（Rh）最貴
         costs = {n: lm.get(n).cost_usd_kg() for n in lm.LITERATURE_MCE}
-        assert max(costs, key=costs.get) == "Gd5Si2Ge2"
+        assert costs["Gd5Si2Ge2"] > 100.0
+        assert max(costs, key=costs.get) == "FeRh"
 
     def test_lafesi_and_mnfep_cheapest(self):
         costs = {n: lm.get(n).cost_usd_kg() for n in lm.LITERATURE_MCE}
@@ -98,10 +99,12 @@ class TestRecommend:
         # 便宜 + 可調 + 高 ΔS 的一階材料應排前二
         assert {recs[0].name, recs[1].name} == {"La(Fe,Si)13H", "(Mn,Fe)2(P,Si)"}
 
-    def test_expensive_ranks_last(self):
+    def test_caveat_materials_not_recommended(self):
+        # 有實用性警示（毒/極貴/逆磁熱）的材料不應排進前二
         recs = self._recs(T_operating_C=80, field_T=2.0)
-        # Gd5Si2Ge2（Ge 貴）應墊底
-        assert recs[-1].name == "Gd5Si2Ge2"
+        top2 = {recs[0].name, recs[1].name}
+        for n in ("MnAs", "FeRh", "Ni-Mn-Sn (Heusler)"):
+            assert n not in top2
 
     def test_rare_earth_free_preference_boosts_mnfep(self):
         from alloy_engine.thermomagnetic.recommend import recommend_material

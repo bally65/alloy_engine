@@ -20,13 +20,13 @@ def main() -> None:
     print("═" * 74)
     print(" 最低成本磁熱材料分析（文獻 ΔS_M + 元素價格代理）")
     print("═" * 74)
-    print(f"{'材料':<16}{'Tc(K)':>7}{'ΔS@2T':>8}{'階':>5}{'磁滯':>14}"
-          f"{'成本$/kg':>11}{'ΔS/成本':>9}")
+    print(f"{'材料':<18}{'Tc(K)':>7}{'ΔS@2T':>8}{'階':>5}"
+          f"{'成本$/kg':>11}{'ΔS/成本':>9}  警示")
     print("-" * 74)
     for name, ds, cost, fom in lm.rank_by_value_per_cost():
         m = lm.get(name)
-        print(f"{name:<16}{m.Tc_K:>7.0f}{ds:>8.1f}{m.order:>5}{m.hysteresis:>14}"
-              f"{cost:>11.1f}{fom:>9.1f}")
+        flag = f"  ⚠ {m.caveat}" if m.caveat else ""
+        print(f"{name:<18}{m.Tc_K:>7.0f}{ds:>8.1f}{m.order:>5}{cost:>11.1f}{fom:>9.1f}{flag}")
     print("-" * 74)
 
     ranked = lm.rank_by_value_per_cost()
