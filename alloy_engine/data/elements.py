@@ -30,6 +30,10 @@ ELEMENT_PROPERTIES: dict[str, dict[str, float]] = {
     # Gd: 室溫鐵磁基準 (Tc≈293K, mu=7.55μB)；La: 非磁性，啟用 La-Fe-Si 1:13 相
     "Gd": {"Z": 64, "M": 157.25, "r": 180, "EN": 1.20, "Vel": 3, "IE": 6.15, "mu": 7.55, "rho": 7.90, "E": 55},
     "La": {"Z": 57, "M": 138.91, "r": 187, "EN": 1.10, "Vel": 3, "IE": 5.58, "mu": 0.0,  "rho": 6.16, "E": 37},
+    # ── 類金屬 P / Ge（缺陷 D8）：解鎖一階 MCE 主力 (Mn,Fe)2(P,Si)、La(Fe,Si,Ge)13、
+    #    Gd5(Si,Ge)；皆非磁性，主要以調制相變溫度與 ΔS 進入磁熱材料 ────────────────
+    "P":  {"Z": 15, "M": 30.97, "r": 98,  "EN": 2.19, "Vel": 5, "IE": 10.49, "mu": 0.0, "rho": 1.82, "E": 30},
+    "Ge": {"Z": 32, "M": 72.63, "r": 122, "EN": 2.01, "Vel": 4, "IE": 7.90,  "mu": 0.0, "rho": 5.32, "E": 103},
 }
 
 ELEMENTS:     list[str] = list(ELEMENT_PROPERTIES.keys())

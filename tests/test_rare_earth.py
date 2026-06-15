@@ -24,7 +24,7 @@ def _comp(d: dict) -> np.ndarray:
 class TestElementSpace:
     def test_gd_la_present(self):
         assert "Gd" in ELEMENTS and "La" in ELEMENTS
-        assert NUM_ELEMENTS == 12
+        assert NUM_ELEMENTS == 14   # 10 base + Gd/La (D2) + P/Ge (D8)
 
     def test_gd_high_moment(self):
         # Gd 高磁矩是其室溫 MCE 的關鍵
