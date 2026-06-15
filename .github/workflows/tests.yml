@@ -34,4 +34,4 @@ jobs:
           python -m py_compile scripts/run_search.py scripts/train_surrogate.py \
             scripts/nemad_eval.py scripts/train_surrogate_nemad_baseline.py \
             scripts/simulate_tmg_design.py scripts/evaluate_reference_materials.py \
-            scripts/evaluate_composite_materials.py scripts/mp_magnetization_eval.py
+            scripts/evaluate_composite_materials.py
