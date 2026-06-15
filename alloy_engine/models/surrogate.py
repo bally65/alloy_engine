@@ -195,6 +195,20 @@ class SurrogateBundle:
         )
 
     # ── Checkpoint I/O ────────────────────────────────────────────────────────
+    def replace_tc_head(self, tc_model: PropertyMLP, tc_scaler: Scaler) -> "SurrogateBundle":
+        """
+        以另一個（通常是真實資料訓練的）Tc 模型就地替換 Tc 頭（D2）。
+
+        前提：tc_model 的特徵管線與本 bundle 相同（36 維 Oliynyk），
+        scaler 為 (x_mean, x_std, y_mean, y_std, log_t)。其餘三頭不動。
+        替換後可 save() 成「單一 checkpoint、真實 Tc + 合成 Hc/Br/σy」的統一 bundle，
+        下游以標準 SurrogateBundle.load 取用，無需 HybridBundle 包裝或 --hybrid-tc 旗標。
+        """
+        self.mlp_tc = tc_model.to(self.device).eval()
+        self.sc_tc = tc_scaler
+        self._sc_tc_g = _to_gpu_scaler(tc_scaler, self.device)
+        return self
+
     def save(self, path: Path | str) -> None:
         path = Path(path)
         payload: dict[str, Any] = {

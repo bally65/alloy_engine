@@ -15,6 +15,49 @@ from alloy_engine.data.elements import ELEMENTS
 
 logger = logging.getLogger(__name__)
 
+# 每元素剩磁貢獻 (T)：磁性元素有值，其餘（含 P/Ge 類金屬）預設 0。
+BR_ELEM_CONTRIB: dict[str, float] = {
+    "Fe": 1.40, "Ni": 0.60, "Co": 1.80, "Gd": 1.80,
+}
+
+# Dirichlet 設計先驗（取樣偏置）：磁性主族權重高，類金屬/添加物較低。
+# 缺鍵預設 0.4。P/Ge 給中低權重以利搜出 (Mn,Fe)2(P,Si)、La(Fe,Si,Ge)13。
+ALPHA_PRIOR: dict[str, float] = {
+    "Fe": 3.0, "Ni": 3.0, "Co": 1.5, "Cr": 1.0, "Mn": 0.6, "Cu": 0.5,
+    "Mo": 0.5, "Si": 0.4, "Al": 0.4, "V": 0.4, "Gd": 1.2, "La": 1.0,
+    "P": 0.6, "Ge": 0.6,
+}
+
+
+def alpha_vector() -> np.ndarray:
+    """回傳按 ELEMENTS 對齊的 Dirichlet alpha 向量（單一真實來源，供 GA 共用）。"""
+    return np.array([ALPHA_PRIOR.get(e, 0.4) for e in ELEMENTS], dtype=np.float64)
+
+
+def hydrogenation_tc_shift_K(comp: np.ndarray) -> np.ndarray:
+    """
+    氫化 Tc 上修模型（缺陷 D8）：La(Fe,Si)13 吸氫後 Tc 由 ~200K 上修至 ~340–450K。
+
+    本函數回傳「若將 La-Fe-Si(-Ge) 1:13 相氫化」對 Tc 的近似上移量 (K)，作為
+    處理步驟的可選修正（非組成元素，故不入成分向量）。對非 1:13 相回傳 ~0。
+
+    Args:
+        comp: (N, NUM_ELEMENTS) 成分矩陣
+    Returns:
+        (N,) Tc 上移量 (K)，0–150K
+    """
+    la = comp[:, ELEMENTS.index("La")]
+    fe = comp[:, ELEMENTS.index("Fe")]
+    si = comp[:, ELEMENTS.index("Si")]
+    ge = comp[:, ELEMENTS.index("Ge")]
+    metalloid = si + 0.8 * ge
+    la_fe_si = (
+        np.exp(-((la - 0.07) ** 2) / (2 * 0.03 ** 2))
+        * np.exp(-((metalloid - 0.12) ** 2) / (2 * 0.05 ** 2))
+        * (1.0 / (1.0 + np.exp(-(fe - 0.5) * 20.0)))
+    )
+    return (150.0 * la_fe_si).astype(np.float32)
+
 
 def physics_based_properties_batch(
     comp: np.ndarray,
@@ -44,13 +87,25 @@ def physics_based_properties_batch(
     v  = comp[:, ELEMENTS.index("V")]
     gd = comp[:, ELEMENTS.index("Gd")]
     la = comp[:, ELEMENTS.index("La")]
+    p  = comp[:, ELEMENTS.index("P")]
+    ge = comp[:, ELEMENTS.index("Ge")]
     n  = comp.shape[0]
 
-    # La-Fe-Si 1:13 相鄰近度（La≈7%, Si≈12%, Fe>0.5 時最強）：tunable 近室溫 Tc
+    # La-Fe-Si(-Ge) 1:13 相鄰近度（La≈7%, 類金屬(Si+Ge)≈12%, Fe>0.5 時最強）：
+    # Ge 可替代 Si 進入 1:13 相（La(Fe,Si,Ge)13），效率略低於 Si。
+    metalloid_lafesi = si + 0.8 * ge
     la_fe_si = (
         np.exp(-((la - 0.07) ** 2) / (2 * 0.03 ** 2))
-        * np.exp(-((si - 0.12) ** 2) / (2 * 0.05 ** 2))
+        * np.exp(-((metalloid_lafesi - 0.12) ** 2) / (2 * 0.05 ** 2))
         * (1.0 / (1.0 + np.exp(-(fe - 0.5) * 20.0)))
+    )
+
+    # (Mn,Fe)2(P,Si) 一階相鄰近度（無稀土室溫 MCE 主力）：Mn≈1/3、(P+Si)≈1/3、需 Fe。
+    # Tc 可調至近室溫，ΔS_M 為各體系最大。
+    mn_fe_p_si = (
+        np.exp(-((mn - 0.33) ** 2) / (2 * 0.12 ** 2))
+        * np.exp(-(((p + si) - 0.33) ** 2) / (2 * 0.12 ** 2))
+        * (1.0 / (1.0 + np.exp(-(fe - 0.10) * 20.0)))
     )
 
     # ── Tc (居禮溫度, K) ──────────────────────────────────────────────────────
@@ -69,7 +124,8 @@ def physics_based_properties_batch(
 
     # 抑制項：Cr/Mn 係數大幅降低（v1: 5500/4500 → v2: 1800/1200）
     cr_suppress = 1800 * np.power(cr, 1.2)
-    mn_suppress = 1200 * np.power(mn, 1.2)
+    # Mn 反鐵磁抑制；但在 (Mn,Fe)2(P,Si) 一階相中 Mn 為鐵磁耦合 → 由 proximity 解除抑制
+    mn_suppress = 1200 * np.power(mn, 1.2) * (1.0 - 0.85 * mn_fe_p_si)
 
     # 稀釋項：係數降低（v1: 0.5 → v2: 0.20）
     nonmag   = 1 - mag_frac - cr - mn
@@ -83,8 +139,10 @@ def physics_based_properties_batch(
     )
 
     tc = (base_tc + fe_co_synergy) * mag_frac - cr_suppress - mn_suppress - dilution + permalloy
-    # La-Fe-Si 1:13 相把 Tc 拉向 ~285K（近室溫 tunable，氫化可再上修，本模型不含 H）
+    # La-Fe-Si 1:13 相把 Tc 拉向 ~285K（近室溫 tunable，氫化可再上修，見 hydrogenation_tc_shift_K）
     tc = tc + la_fe_si * (285.0 - tc) * 0.7
+    # (Mn,Fe)2(P,Si) 一階相把 Tc 拉向 ~290K（近室溫）
+    tc = tc + mn_fe_p_si * (290.0 - tc) * 0.8
     tc += np.random.normal(0, 25, n)
     tc = np.clip(tc, 50, 1500)
 
@@ -97,17 +155,18 @@ def physics_based_properties_batch(
     hc = np.clip(base_hc, 1.0, 1000)
 
     # ── Br (剩磁, T) — v5.1 calibrated ──────────────────────────────────────
-    # Per-element Br contribution (T): Fe=1.40, Ni=0.60, Co=1.80 (Bozorth 1951, Cullity 2009)
-    # Gd=1.80（高 mu 室溫鐵磁，飽和極化代理）；La=0（非磁性）
-    # 順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
-    BR_ELEM_CONTRIB = np.array([1.40, 0.60, 1.80, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.80, 0.0])
-    br_base = comp @ BR_ELEM_CONTRIB
+    # 每元素 Br 貢獻 (T)：Fe=1.40, Ni=0.60, Co=1.80 (Bozorth 1951, Cullity 2009)；
+    # Gd=1.80（高 mu 室溫鐵磁，飽和極化代理）；其餘非磁性=0（含 P/Ge）。
+    # 以字典建構（按 ELEMENTS 對齊），加元素只需補鍵，缺鍵預設 0。
+    br_contrib = np.array([BR_ELEM_CONTRIB.get(e, 0.0) for e in ELEMENTS], dtype=np.float64)
+    br_base = comp @ br_contrib
     mag_frac = fe + ni + co + gd
     # Fe-Co Slater-Pauling synergy: Hiperco50 Br=2.40T >> linear pred 1.60T
     fe_co_synergy_br = 0.80 * 4.0 * (fe * co) / (mag_frac ** 2 + 1e-6)
-    # La-Fe-Si 1:13 相 Fe 矩增強（Br≈1.2–1.4T）
+    # La-Fe-Si / Mn-Fe-P-Si 一階相 Fe 矩增強（Br≈1.0–1.4T）
     la_fe_si_br = 0.70 * la_fe_si
-    br = (br_base + fe_co_synergy_br + la_fe_si_br) * np.random.uniform(0.88, 1.12, n)
+    mn_fe_p_si_br = 0.55 * mn_fe_p_si
+    br = (br_base + fe_co_synergy_br + la_fe_si_br + mn_fe_p_si_br) * np.random.uniform(0.88, 1.12, n)
     br = np.clip(br, 0.01, 2.6)
 
     # ── σy (降伏強度, MPa)：固溶強化模型 ─────────────────────────────────────
@@ -192,9 +251,8 @@ def generate_training_data(
     rng = np.random.default_rng(seed)
     np.random.seed(seed)  # physics_based_properties_batch 內部仍用 np.random
 
-    # 順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
-    alpha_full = np.array([3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4, 1.2, 1.0],
-                          dtype=np.float64)
+    # Dirichlet 偏置：以 ALPHA_PRIOR 按 ELEMENTS 對齊建構（單一真實來源）
+    alpha_full = alpha_vector()
 
     if sparse:
         logger.info("生成 %d 筆稀疏訓練樣本（Poisson lambda=%.1f）…", n_samples, n_active_lambda)

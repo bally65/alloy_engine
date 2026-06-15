@@ -16,27 +16,28 @@ v5.0 新增：
 import torch
 from alloy_engine.data.elements import ELEMENTS
 
-# 純元素熱導率 (W/m·K)，順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
-KAPPA_PURE = torch.tensor(
-    [80.0, 91.0, 100.0, 94.0, 7.8, 401.0, 138.0, 149.0, 237.0, 31.0, 10.6, 13.4],
-    dtype=torch.float32,
-)
+# 純元素熱物性（以元素符號為鍵，建構時按 ELEMENTS 順序對齊）。
+# 用字典而非位置陣列：加元素時只需補鍵，缺鍵會在建構時 KeyError 立即報錯，
+# 杜絕「忘了同步擴張位置陣列」的靜默維度漂移（缺陷 D7/D8 的根因之一）。
+_KAPPA_WmK = {  # 純元素熱導率 (W/m·K)
+    "Fe": 80.0, "Ni": 91.0, "Co": 100.0, "Cr": 94.0, "Mn": 7.8, "Cu": 401.0,
+    "Mo": 138.0, "Si": 149.0, "Al": 237.0, "V": 31.0, "Gd": 10.6, "La": 13.4,
+    "P": 0.24, "Ge": 60.2,
+}
+_CP_MOLAR = {  # 純元素莫耳比熱 J/(mol·K)，室溫 Dulong-Petit
+    "Fe": 25.10, "Ni": 26.07, "Co": 24.81, "Cr": 23.35, "Mn": 26.32, "Cu": 24.44,
+    "Mo": 24.06, "Si": 19.79, "Al": 24.20, "V": 24.89, "Gd": 37.03, "La": 27.11,
+    "P": 23.84, "Ge": 23.22,
+}
+_RHO_KG_M3 = {  # 純元素密度 kg/m³（g/cm³ × 1000）
+    "Fe": 7870.0, "Ni": 8908.0, "Co": 8900.0, "Cr": 7190.0, "Mn": 7470.0, "Cu": 8960.0,
+    "Mo": 10280.0, "Si": 2330.0, "Al": 2700.0, "V": 6110.0, "Gd": 7900.0, "La": 6160.0,
+    "P": 1820.0, "Ge": 5323.0,
+}
 
-# ===== v5.0 新增：純元素莫耳比熱 =====
-# 單位: J/(mol·K)，室溫 (~300K) Dulong-Petit 值
-# 順序對應 ELEMENTS = [Fe, Ni, Co, Cr, Mn, Cu, Mo, Si, Al, V, Gd, La]
-CP_PURE_MOLAR = torch.tensor(
-    [25.10, 26.07, 24.81, 23.35, 26.32, 24.44, 24.06, 19.79, 24.20, 24.89, 37.03, 27.11],
-    dtype=torch.float32,
-)
-
-# ===== v5.0 新增：純元素密度 =====
-# 單位: kg/m³（從 g/cm³ × 1000）
-# 順序對應 ELEMENTS = [Fe, Ni, Co, Cr, Mn, Cu, Mo, Si, Al, V, Gd, La]
-RHO_PURE_KG_M3 = torch.tensor(
-    [7870.0, 8908.0, 8900.0, 7190.0, 7470.0, 8960.0, 10280.0, 2330.0, 2700.0, 6110.0, 7900.0, 6160.0],
-    dtype=torch.float32,
-)
+KAPPA_PURE    = torch.tensor([_KAPPA_WmK[e] for e in ELEMENTS], dtype=torch.float32)
+CP_PURE_MOLAR = torch.tensor([_CP_MOLAR[e]  for e in ELEMENTS], dtype=torch.float32)
+RHO_PURE_KG_M3 = torch.tensor([_RHO_KG_M3[e] for e in ELEMENTS], dtype=torch.float32)
 
 
 def cp_estimate_specific(compositions: torch.Tensor) -> torch.Tensor:

@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import torch
 
 # ── 路徑 ──────────────────────────────────────────────────────────────────────
@@ -7,7 +8,21 @@ CHECKPOINT_DIR = PACKAGE_DIR / "models" / "checkpoints"
 CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── 運算裝置 ──────────────────────────────────────────────────────────────────
-DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# 自動偵測：CUDA → MPS（Apple Silicon, 如 M1–M5）→ CPU。
+# 以環境變數 ALLOY_DEVICE 強制覆寫（如 MPS 某些算子不支援時 ALLOY_DEVICE=cpu）。
+def _auto_device() -> torch.device:
+    forced = os.environ.get("ALLOY_DEVICE")
+    if forced:
+        return torch.device(forced)
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    mps = getattr(torch.backends, "mps", None)
+    if mps is not None and mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+DEFAULT_DEVICE = _auto_device()
 
 # ── 隨機種子 ──────────────────────────────────────────────────────────────────
 DEFAULT_SEED = 42

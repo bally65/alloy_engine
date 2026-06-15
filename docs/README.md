@@ -25,6 +25,10 @@
 | [RARE_EARTH_EXPANSION](RARE_EARTH_EXPANSION.md) | 加 Gd/La（10→12 元素）| GA 自主收斂到 Gd 基室溫材料 |
 | [KNOWN_DEFECTS](KNOWN_DEFECTS.md) | 12 項缺陷登錄 + 可處理性分級 | D1–D7 已修；D8–D12 路線圖 |
 | [DATA_SOURCING_ASSESSMENT](DATA_SOURCING_ASSESSMENT.md) | 真實資料調研 + GHA 方案 | NEMAD 公開可抓；MP 已通 |
+| [PIPELINE_REPORT](PIPELINE_REPORT.md) | 生產級全管線正式數字 | 真實 Tc R²=0.78（P/Ge 擴張後）|
+| [MEASUREMENT_PROTOCOL](MEASUREMENT_PROTOCOL.md) | 實測協定（D6/驗證）+ 文獻替代 | 唯實測可解的收尾 |
+| [SENSITIVITY_ANALYSIS](SENSITIVITY_ANALYSIS.md) | 假設參數敏感度（D6）| connectivity 43%、回熱相消；定性穩健 |
+| [LITERATURE_CALIBRATION](LITERATURE_CALIBRATION.md) | 文獻校準 + 最低成本材料（無儀器）| La-Fe-Si/Mn-Fe-P 效能/成本 ×100–200 於 Gd |
 
 ## 關鍵量化結果
 
@@ -54,7 +58,10 @@ alloy_engine/models/
 ## 復現指令
 
 ```bash
-# 1. 合成代理（含 Gd/La 稀土）
+# 0. 一鍵生產級全管線（自動選 CUDA/MPS/CPU；Mac M5 用 MPS）→ docs/PIPELINE_REPORT.md
+bash scripts/run_full_pipeline.sh
+
+# 1. 合成代理（14 元素：含 Gd/La 稀土 + P/Ge 類金屬）
 python scripts/train_surrogate.py --n-samples 6000 --epochs 100
 
 # 2. 真實 NEMAD Tc 基準（需 external/NEMAD/Dataset/FM_with_curie.csv）
@@ -64,15 +71,21 @@ python scripts/train_surrogate_nemad_baseline.py        # → R²≈0.88
 python scripts/nemad_eval.py                            # 合成 vs 真實 Tc
 python scripts/mp_magnetization_eval.py                 # 合成 Br vs MP（需 MP key）
 
-# 4. GA 用真實 Tc + 整機/複合目標搜尋
+# 4a. 把真實 Tc 烘焙進主代理 → 單一統一 bundle（D2，免 --hybrid-tc）
+python scripts/bake_real_tc.py   # → checkpoints/bundle_real_tc.pt
+
+# 4b. GA 用真實 Tc + 整機/複合目標搜尋（兩種等價路徑）
 python scripts/run_search.py --scenario 低溫廢熱_150C --mode thermomagnetic \
-    --hybrid-tc alloy_engine/models/checkpoints/surrogate_nemad_baseline.pt \
+    --checkpoint alloy_engine/models/checkpoints/bundle_real_tc.pt \
     --w-device 1.0 --device-matrix Cu
+#   或保留兩檔、推論期混合：
+#   ... --hybrid-tc alloy_engine/models/checkpoints/surrogate_nemad_baseline.pt
 
 # 5. 設計模擬與 what-if
 python scripts/simulate_tmg_design.py
 python scripts/evaluate_reference_materials.py
 python scripts/evaluate_composite_materials.py
+python scripts/evaluate_reference_devices.py   # 發電側對標真實 TMG 原型（D12）
 ```
 
 ## 資料來源（git-ignored，不入版控）
@@ -84,6 +97,9 @@ python scripts/evaluate_composite_materials.py
 ## 現況與下一步
 
 - ✅ 已完成：整機模型、製冷對偶、複合材料、稀土擴張、CI、D4/D5 物理修正、
-  真實 Tc 接入 GA、知識/歷程備份。（全 8 個 PR 已合併進 main）
-- 🔶 進行中：真實 Br 校準（需區分 0K 飽和 vs 工作溫度磁化）。
-- ⛔→🔶 已連通：NEMAD（Tc）、MP（磁化）皆可取用，剩整合與校準。
+  D9 稀土可製造性、真實 Tc 接入 GA 並烘焙進統一 bundle（D2）、D3 磁化溫度修正、
+  D12 發電側原型對標、GHA sim-to-real 基準、知識/歷程備份。
+  D8 P/Ge 元素擴張（12→14，解鎖 +366 筆真實 NEMAD 化合物 + 氫化 Tc 模型）。
+- 🔶 進行中：真實 Br 完整入管線（謹慎，需 0K 飽和→工作溫度）；
+  D11（生產級代理重跑）、D6（複合微結構參數校準）。
+- ⛔→🔶 已連通：NEMAD（Tc）、MP（磁化）皆可取用並已用於對標/烘焙。

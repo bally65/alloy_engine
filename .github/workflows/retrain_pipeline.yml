@@ -1,0 +1,81 @@
+name: retrain-pipeline
+
+# Tier B 算力管線：讓 CI 當算力。手動或排程觸發 → 抓公開 NEMAD → 跑生產級
+# 全管線（合成代理 → 真實 Tc baseline → 烘焙 bundle）→ 把 checkpoint 與量化
+# 報告上傳成 artifact。如此「不需本地機器」也能拿到 .pt 產物（30 天保存）。
+#
+# 注意：MP 真實 Br 對標需 secret MP_API_KEY；未設則該步自動略過。
+
+on:
+  workflow_dispatch:
+    inputs:
+      n_samples:
+        description: "合成樣本數"
+        default: "8000"
+      epochs:
+        description: "訓練 epochs"
+        default: "300"
+  schedule:
+    - cron: "0 7 1 * *"   # 每月 1 號 07:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    env:
+      NEMAD_URL: "https://raw.githubusercontent.com/sumanitani/NEMAD-MagneticML/main/Dataset/FM_with_curie.csv"
+      NEMAD_PATH: "external/NEMAD/Dataset/FM_with_curie.csv"
+      N_SAMPLES: ${{ github.event.inputs.n_samples || '8000' }}
+      EPOCHS: ${{ github.event.inputs.epochs || '300' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install numpy pandas scikit-learn matplotlib
+
+      - name: Download NEMAD dataset
+        run: |
+          mkdir -p "$(dirname "$NEMAD_PATH")"
+          curl -fsSL "$NEMAD_URL" -o "$NEMAD_PATH"
+          python - <<'PY'
+          import os, pandas as pd
+          df = pd.read_csv(os.environ["NEMAD_PATH"])
+          assert "Mean_TC_K" in df.columns and len(df) > 10000
+          print("NEMAD rows:", len(df))
+          PY
+
+      - name: Provide MP key (optional, from secret)
+        env:
+          MP_API_KEY: ${{ secrets.MP_API_KEY }}
+        run: |
+          if [ -n "$MP_API_KEY" ]; then
+            mkdir -p external && printf '%s' "$MP_API_KEY" > external/.mp_key
+            echo "MP key configured — Br eval will run"
+          else
+            echo "no MP_API_KEY secret — Br eval step will self-skip"
+          fi
+
+      - name: Run full pipeline
+        run: bash scripts/run_full_pipeline.sh
+
+      - name: Upload checkpoints + report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrained-pipeline
+          path: |
+            alloy_engine/models/checkpoints/*.pt
+            results/pipeline_report.md
+            results/*.png
+          retention-days: 30

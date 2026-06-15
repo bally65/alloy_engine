@@ -1,0 +1,99 @@
+name: sim-to-real-benchmark
+
+# 資料調研方案 A：排程抓「公開」NEMAD 居禮溫度資料 → 跑 sim-to-real 對標，
+# 把「合成 vs 真實」的落差變成持續可見的指標。資料不入版控（執行時抓取 + 引用），
+# 故繞過 NEMAD repo 無 license 的疑慮。
+#
+# 觸發：每週一 06:00 UTC 排程 + 手動 workflow_dispatch。
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    env:
+      NEMAD_URL: "https://raw.githubusercontent.com/sumanitani/NEMAD-MagneticML/main/Dataset/FM_with_curie.csv"
+      NEMAD_PATH: "external/NEMAD/Dataset/FM_with_curie.csv"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install numpy pandas scikit-learn matplotlib
+
+      - name: Compute year-week (for weekly cache refresh)
+        id: date
+        run: echo "yw=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
+      # 以「年-週」為 key 快取資料，避免每跑都重抓（NEMAD 資料更新慢）
+      - name: Cache NEMAD dataset
+        id: nemad-cache
+        uses: actions/cache@v4
+        with:
+          path: external/NEMAD/Dataset
+          key: nemad-fm-curie-${{ steps.date.outputs.yw }}
+
+      - name: Download NEMAD dataset (if not cached)
+        if: steps.nemad-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$(dirname "$NEMAD_PATH")"
+          curl -fsSL "$NEMAD_URL" -o "$NEMAD_PATH"
+
+      - name: Verify dataset integrity
+        run: |
+          python - <<'PY'
+          import os, pandas as pd
+          p = os.environ["NEMAD_PATH"]
+          df = pd.read_csv(p)
+          assert "Mean_TC_K" in df.columns, f"missing Tc column; got {list(df.columns)[:8]}"
+          assert len(df) > 10000, f"unexpectedly few rows: {len(df)}"
+          print(f"NEMAD rows={len(df)}  cols={len(df.columns)}  SHA-ok")
+          import hashlib
+          print("sha256:", hashlib.sha256(open(p,'rb').read()).hexdigest())
+          PY
+
+      - name: Train quick synthetic surrogate (for sim-to-real baseline)
+        run: python scripts/train_surrogate.py --n-samples 4000 --epochs 60 --seed 0
+
+      - name: Sim-to-real evaluation (synthetic surrogate vs real NEMAD Tc)
+        run: |
+          mkdir -p results
+          python scripts/nemad_eval.py | tee results/nemad_eval.log
+
+      - name: Real-Tc training baseline (proves achievable R²)
+        run: |
+          mkdir -p results
+          python scripts/train_surrogate_nemad_baseline.py | tee results/nemad_baseline.log
+
+      - name: Write run summary
+        if: always()
+        run: |
+          {
+            echo "## sim-to-real benchmark"
+            echo '```'
+            grep -E "R2|R²|MAE|rows=" results/*.log 2>/dev/null | tail -30 || echo "no metrics captured"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-to-real-results
+          path: |
+            results/**
+          retention-days: 30

@@ -169,10 +169,10 @@ class GPUGeneticAlgorithm:
 
     # ── 初始化 ────────────────────────────────────────────────────────────────
     def _init_population(self) -> torch.Tensor:
-        # 順序對應 ELEMENTS = [Fe,Ni,Co,Cr,Mn,Cu,Mo,Si,Al,V,Gd,La]
+        # 與合成資料共用同一 Dirichlet 先驗（按 ELEMENTS 對齊，含 P/Ge）
+        from alloy_engine.data.synthetic import alpha_vector
         alpha = torch.tensor(
-            [3.0, 3.0, 1.5, 1.0, 0.6, 0.5, 0.5, 0.4, 0.4, 0.4, 1.2, 1.0],
-            device=self.device,
+            alpha_vector(), dtype=torch.float32, device=self.device,
         ).expand(self.N, -1)
         return torch.distributions.Dirichlet(alpha).sample()
 
@@ -200,11 +200,14 @@ class GPUGeneticAlgorithm:
         mo  = pop[:, _IDX["Mo"]]
         si  = pop[:, _IDX["Si"]]
         al  = pop[:, _IDX["Al"]]
+        p   = pop[:, _IDX["P"]]
+        ge  = pop[:, _IDX["Ge"]]
 
         penalty = torch.ones(pop.shape[0], device=self.device)
 
-        # (Si + Al) > 0.20 → DO₃ 脆相風險
-        si_al = si + al
+        # (Si+Al+P+Ge) > 0.20 → 類金屬脆相風險（DO₃ / 一階 (Mn,Fe)2(P,Si) 脆裂，需黏結成型）
+        # P/Ge 一併計入：解鎖的一階 MCE 雖有效，但確實脆、可製造性應 down-rank（D8/D9 同理）
+        si_al = si + al + p + ge
         excess_si_al = torch.clamp(si_al - 0.20, min=0.0) / 0.20   # 超出比例
         penalty = penalty * (1.0 - 0.40 * torch.clamp(excess_si_al, max=1.0))
 
