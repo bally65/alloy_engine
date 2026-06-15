@@ -28,6 +28,7 @@
 | [PIPELINE_REPORT](PIPELINE_REPORT.md) | 生產級全管線正式數字 | 真實 Tc R²=0.78（P/Ge 擴張後）|
 | [MEASUREMENT_PROTOCOL](MEASUREMENT_PROTOCOL.md) | 實測協定（D6/驗證）+ 文獻替代 | 唯實測可解的收尾 |
 | [SENSITIVITY_ANALYSIS](SENSITIVITY_ANALYSIS.md) | 假設參數敏感度（D6）| connectivity 43%、回熱相消；定性穩健 |
+| [LITERATURE_CALIBRATION](LITERATURE_CALIBRATION.md) | 文獻校準 + 最低成本材料（無儀器）| La-Fe-Si/Mn-Fe-P 效能/成本 ×100–200 於 Gd |
 
 ## 關鍵量化結果
 
