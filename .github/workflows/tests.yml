@@ -37,4 +37,4 @@ jobs:
             scripts/evaluate_composite_materials.py scripts/mp_magnetization_eval.py \
             scripts/bake_real_tc.py scripts/evaluate_reference_devices.py \
             scripts/sensitivity_analysis.py scripts/lowest_cost_material.py \
-            scripts/recommend_material.py
+            scripts/recommend_material.py scripts/calibrated_device_report.py

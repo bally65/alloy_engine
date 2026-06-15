@@ -50,6 +50,7 @@ class LiteratureMCE:
     rare_earth_free: bool = field(default=False)
     dSm_fwhm_K: float = field(default=0.0)   # ΔS_M(T) 峰半高全寬 (K)，文獻代表值
     tc_tunable: bool = field(default=False)  # Tc 可調（如氫化/摻雜）以對齊工作溫度
+    dS_rel_uncertainty: float = field(default=0.12)  # 文獻 ΔS 的相對不確定度（多篇散布 ±）
 
     def dS_at_field(self, field_T: float) -> float:
         """估某場強下的 |ΔS_M|：≤2T 用 B^0.7 標度，2–5T 線性內插。"""
