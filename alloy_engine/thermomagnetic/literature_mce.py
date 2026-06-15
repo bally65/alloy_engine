@@ -27,11 +27,12 @@ ELEMENT_PRICE_USD_KG: dict[str, float] = {
     "Fe": 0.5, "Mn": 2.0, "P": 3.0, "Si": 2.0, "Al": 2.0, "Co": 30.0,
     "Ni": 15.0, "Cu": 8.0, "Cr": 9.0, "Mo": 30.0, "V": 25.0,
     "La": 5.0, "Gd": 60.0, "Ge": 1200.0,
+    "Sn": 25.0, "As": 3.0, "Rh": 15000.0,   # 新物種用
 }
 # 原子量（g/mol），算質量分率用
 _ATOMIC_MASS = {
     "Fe": 55.85, "Mn": 54.94, "P": 30.97, "Si": 28.09, "Ge": 72.63,
-    "La": 138.91, "Gd": 157.25,
+    "La": 138.91, "Gd": 157.25, "Ni": 58.69, "Sn": 118.71, "As": 74.92, "Rh": 102.91,
 }
 
 
@@ -50,6 +51,8 @@ class LiteratureMCE:
     rare_earth_free: bool = field(default=False)
     dSm_fwhm_K: float = field(default=0.0)   # ΔS_M(T) 峰半高全寬 (K)，文獻代表值
     tc_tunable: bool = field(default=False)  # Tc 可調（如氫化/摻雜）以對齊工作溫度
+    dS_rel_uncertainty: float = field(default=0.12)  # 文獻 ΔS 的相對不確定度（多篇散布 ±）
+    caveat: str = field(default="")   # 實用性警示：toxic / inverse / 極貴 等
 
     def dS_at_field(self, field_T: float) -> float:
         """估某場強下的 |ΔS_M|：≤2T 用 B^0.7 標度，2–5T 線性內插。"""
@@ -115,6 +118,34 @@ LITERATURE_MCE: dict[str, LiteratureMCE] = {
         note="無稀土、巨磁熱；磁滯可由 Co/Ni/B/V/N 摻雜調低",
         tc_tunable=True,
         rare_earth_free=True,
+    ),
+    # ── 新物種（文獻成本/效能比較；非首選，各有實用性警示）──────────────────────
+    "Ni-Mn-Sn (Heusler)": LiteratureMCE(
+        "Ni-Mn-Sn (Heusler)", Tc_K=300.0, dS_2T=10.0, dS_5T=18.0, dT_ad_2T=2.0,
+        order="1st", hysteresis="large",
+        approx_atoms={"Ni": 2.0, "Mn": 1.0, "Sn": 1.0},
+        source="Krenke et al. Nature Mater. 2005",
+        dSm_fwhm_K=15.0, rare_earth_free=True,
+        note="逆磁熱（metamagnetic）；無稀土但磁滯大、Sn 抬成本",
+        caveat="inverse-MCE + 大磁滯（循環損耗高）",
+    ),
+    "MnAs": LiteratureMCE(
+        "MnAs", Tc_K=318.0, dS_2T=20.0, dS_5T=32.0, dT_ad_2T=4.7,
+        order="1st", hysteresis="large",
+        approx_atoms={"Mn": 1.0, "As": 1.0},
+        source="Wada & Tanabe APL 2001",
+        dSm_fwhm_K=10.0, rare_earth_free=True,
+        note="巨磁熱、原料便宜，但含砷",
+        caveat="As 劇毒 → 安全/法規排除量產",
+    ),
+    "FeRh": LiteratureMCE(
+        "FeRh", Tc_K=350.0, dS_2T=12.0, dS_5T=20.0, dT_ad_2T=8.0,
+        order="1st", hysteresis="moderate",
+        approx_atoms={"Fe": 1.0, "Rh": 1.0},
+        source="Annaorazov et al. JAP 1996",
+        dSm_fwhm_K=10.0, rare_earth_free=True,
+        note="ΔT_ad 極大（AFM→FM），但 Rh 為貴金屬",
+        caveat="Rh ~$15000/kg → 成本天文數字，僅學術",
     ),
 }
 

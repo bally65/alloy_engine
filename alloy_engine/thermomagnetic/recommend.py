@@ -57,13 +57,17 @@ def recommend_material(
         ds = m.dS_at_field(field_T)
         cost = m.cost_usd_kg()
         bonus = 1.3 if (prefer_rare_earth_free and m.rare_earth_free) else 1.0
-        score = tc_match * ds / math.sqrt(cost) * bonus
+        # 實用性警示（毒性/極貴/逆磁熱）大幅降權，避免推薦不可行材料
+        caveat_penalty = 0.2 if m.caveat else 1.0
+        score = tc_match * ds / math.sqrt(cost) * bonus * caveat_penalty
         bits = []
         bits.append("Tc 可調對齊" if m.tc_tunable else f"Tc={m.Tc_K:.0f}K 固定")
         bits.append(f"ΔS@{field_T:g}T={ds:.1f}")
         bits.append(f"${cost:.1f}/kg")
         if m.rare_earth_free:
             bits.append("無稀土")
+        if m.caveat:
+            bits.append(f"⚠ {m.caveat}")
         out.append(Recommendation(
             name=m.name, score=score, tc_match=tc_match, dS_at_field=ds,
             cost_usd_kg=cost, w_K=m.transition_width_w_K(),
