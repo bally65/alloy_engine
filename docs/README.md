@@ -29,6 +29,9 @@
 | [MEASUREMENT_PROTOCOL](MEASUREMENT_PROTOCOL.md) | 實測協定（D6/驗證）+ 文獻替代 | 唯實測可解的收尾 |
 | [SENSITIVITY_ANALYSIS](SENSITIVITY_ANALYSIS.md) | 假設參數敏感度（D6）| connectivity 43%、回熱相消；定性穩健 |
 | [LITERATURE_CALIBRATION](LITERATURE_CALIBRATION.md) | 文獻校準 + 最低成本材料（無儀器）| La-Fe-Si/Mn-Fe-P 效能/成本 ×100–200 於 Gd |
+| [CALIBRATED_PREDICTION](CALIBRATED_PREDICTION.md) | 校準後整機預估（帶 ±12% 誤差條）| 點估計 → 可辯護的區間估計 |
+| [CAPABILITY_STATEMENT](CAPABILITY_STATEMENT.md) | 能力聲明：能/不能預測什麼 | 相對可信、絕對帶折減 |
+| [PAPER_OUTLINE](PAPER_OUTLINE.md) | 論文/論文框架 + 貢獻 | 可發表/可交的學術成果 |
 
 ## 關鍵量化結果
 
