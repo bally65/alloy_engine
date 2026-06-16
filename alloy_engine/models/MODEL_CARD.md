@@ -17,7 +17,7 @@ Four independent `PropertyMLP` regressors bundled as `SurrogateBundle`.
 | mlp_br | Remanence | T | none | **0.9187** |
 | mlp_strength | Yield strength | MPa | none | **0.9448** |
 
-**PropertyMLP:** Linear(36→128) → BN → ReLU → Dropout(0.1) → Linear(128→128) → BN → ReLU → Dropout(0.1) → Linear(128→1)
+**PropertyMLP:** Linear(36→128) → GELU → Dropout(0.10) → Linear(128→128) → GELU → Dropout(0.10) → Linear(128→64) → GELU → Dropout(0.10) → Linear(64→1)（無 BatchNorm；F-SCI-07 已對齊 surrogate.py 實作）
 
 ---
 

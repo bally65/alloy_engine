@@ -209,6 +209,12 @@ def main() -> None:
     logger.info("Device: %s", device)
 
     df = load_and_clean()
+    # F-SCI-04：依成分去重——同一原子分率的多筆紀錄若跨 train/test 折即標籤洩漏，
+    # 使 R² 虛高。保留首筆（reset_index 以對齊後續 idx_te 索引）。
+    _before = len(df)
+    df = df.loc[~df[OUR_ELEMENTS].round(4).duplicated()].reset_index(drop=True)
+    if len(df) < _before:
+        logger.info("成分去重 (F-SCI-04)：%d → %d 列", _before, len(df))
     logger.info("Total after cleaning: %d  (Mo: %d, V: %d, Mo|V: %d)",
                 len(df), df.has_Mo.sum(), df.has_V.sum(), df.is_rare.sum())
 

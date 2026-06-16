@@ -121,13 +121,22 @@ def main():
         si_r**2, al_r**2, (si_r + al_r)**2,
     ])
 
-    # Fit full regression
+    # Fit full regression（係數以全資料擬合，供生產修正使用）
     reg = LinearRegression().fit(X, res_r)
     pred_res = reg.predict(X)
     r2 = r2_score(res_r, pred_res)
 
+    # F-SCI-03：另以 held-out fold 回報 out-of-sample R²，避免 in-sample 循環校驗高估泛化度。
+    from sklearn.model_selection import train_test_split as _tts
+    if len(res_r) >= 10:
+        Xtr, Xte, ytr, yte = _tts(X, res_r, test_size=0.25, random_state=42)
+        r2_out = r2_score(yte, LinearRegression().fit(Xtr, ytr).predict(Xte))
+    else:
+        r2_out = float("nan")
+
     print(f"\n=== Linear regression on residuals (non-Invar) ===")
-    print(f"  R² = {r2:.4f}  (how much of the residual variance the features explain)")
+    print(f"  R² (in-sample)    = {r2:.4f}  (擬合度；會高估泛化)")
+    print(f"  R² (held-out 25%) = {r2_out:.4f}  ← 以此評估泛化 (F-SCI-03，非循環校驗)")
     print(f"  Intercept = {reg.intercept_:+.2f} K")
     print(f"\n  Coefficients (sorted by |coef|):")
     coefs = sorted(zip(feature_names, reg.coef_), key=lambda x: abs(x[1]), reverse=True)

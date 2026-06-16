@@ -138,6 +138,10 @@ def main() -> None:
     else:
         bundle = SurrogateBundle.load(args.checkpoint, device=device)
         logger.info("已載入 checkpoint：%s", args.checkpoint)
+        # F-SCI-08：預設 bundle.pt 為合成 Tc（NEMAD MAE~239°C），易被誤認為真實模型。
+        if Path(args.checkpoint).name == "bundle.pt":
+            logger.warning("注意：bundle.pt 的 Tc 為合成模型（NEMAD MAE~239°C，僅適相對排序）；"
+                           "需真實 Tc（MAE~91°C）請改用 bundle_real_tc.pt（見 scripts/bake_real_tc.py）")
 
     # 2. 決定要跑哪些情境
     if args.scenario == "all":

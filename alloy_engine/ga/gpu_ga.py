@@ -145,6 +145,7 @@ class GPUGeneticAlgorithm:
         self.predict_fn_uncertainty = predict_fn_uncertainty
         self.n_mc_samples           = n_mc_samples
         self.uncertainty_weight     = uncertainty_weight
+        self._warned_mc_noop        = False   # F-ENG-03：一次性警告旗標
 
         self.mode = mode
         if mode == "thermomagnetic":
@@ -461,7 +462,16 @@ class GPUGeneticAlgorithm:
     def fitness(
         self, pop: torch.Tensor
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        if self.enable_uncertainty and self.predict_fn_uncertainty is not None:
+        # F-ENG-03：tc_std 僅 softmag fitness 消費；thermomagnetic 不使用它，故在該模式
+        # 略過 20–30× MC-Dropout 成本（否則為無聲 no-op），並一次性警告使用者。
+        use_mc = (self.enable_uncertainty and self.predict_fn_uncertainty is not None
+                  and self.mode != "thermomagnetic")
+        if (self.enable_uncertainty and self.mode == "thermomagnetic"
+                and not self._warned_mc_noop):
+            logger.warning("uncertainty 加權僅 softmag 模式實作；thermomagnetic 已略過 "
+                           "MC-Dropout（避免無效的 20–30× 成本）")
+            self._warned_mc_noop = True
+        if use_mc:
             preds_mc = self.predict_fn_uncertainty(pop, self.n_mc_samples)
             preds = {
                 "Tc": preds_mc["Tc_mean"], "Hc": preds_mc["Hc_mean"],
