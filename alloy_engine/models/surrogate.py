@@ -68,17 +68,17 @@ def train_mlp(
         target_log: 若 True，對 y 取 log1p 後訓練（適用 Hc 等偏態分佈）
     """
     y_t = np.log1p(y) if target_log else y.copy()
-    x_mean, x_std = X.mean(0), X.std(0) + 1e-6
-    y_mean, y_std = float(y_t.mean()), float(y_t.std() + 1e-6)
 
-    Xn = ((X - x_mean) / x_std).astype(np.float32)
-    yn = ((y_t - y_mean) / y_std).astype(np.float32)
+    # F-SCI-05：先切分，再「僅用訓練集」擬合 scaler，避免測試集統計洩漏進正規化。
+    X_tr_raw, X_te_raw, y_tr_raw, y_te_np = train_test_split(
+        X, y_t, test_size=0.15, random_state=42)
+    x_mean, x_std = X_tr_raw.mean(0), X_tr_raw.std(0) + 1e-6
+    y_mean, y_std = float(y_tr_raw.mean()), float(y_tr_raw.std() + 1e-6)
 
-    X_tr, X_te, y_tr, y_te = train_test_split(Xn, yn, test_size=0.15, random_state=42)
-    Xtr = torch.from_numpy(X_tr).to(device)
-    ytr = torch.from_numpy(y_tr).to(device)
-    Xte = torch.from_numpy(X_te).to(device)
-    y_te_np = y_te * y_std + y_mean  # 原始尺度，供 R² 計算
+    Xtr = torch.from_numpy(((X_tr_raw - x_mean) / x_std).astype(np.float32)).to(device)
+    ytr = torch.from_numpy(((y_tr_raw - y_mean) / y_std).astype(np.float32)).to(device)
+    Xte = torch.from_numpy(((X_te_raw - x_mean) / x_std).astype(np.float32)).to(device)
+    # y_te_np：原始（或 log）尺度的測試真值，供 R² 計算（不參與正規化擬合）
 
     model = PropertyMLP(X.shape[1], hidden=hidden).to(device)
     opt   = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
@@ -238,10 +238,17 @@ class SurrogateBundle:
         logger.info("Checkpoint 已儲存至 %s", path)
 
     @classmethod
-    def load(cls, path: Path | str, device: torch.device) -> "SurrogateBundle":
+    def load(
+        cls,
+        path: Path | str,
+        device: torch.device,
+        expected_sha256: str | None = None,
+    ) -> "SurrogateBundle":
         from alloy_engine.data.elements import get_element_matrix
+        from alloy_engine.models._safe_load import safe_torch_load
         path = Path(path)
-        payload = torch.load(path, map_location=device, weights_only=False)
+        # 安全載入（weights_only=True + numpy 白名單），不執行 checkpoint 內任意程式碼。
+        payload = safe_torch_load(path, map_location=device, expected_sha256=expected_sha256)
 
         in_dim       = payload["in_dim"]
         hidden       = payload["hidden"]

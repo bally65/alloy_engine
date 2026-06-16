@@ -3,8 +3,9 @@
 ================================================================================
 
 動機：合成 Br 對真實 MP 磁化 R²≈0.006（無預測力），且線性再校準無效（無相關可縮放）。
-與 Tc 相同，唯有「以真實資料訓練」才有預測力——本模組以 MP 的 97 個本元素空間 FM
-化合物訓練 GBR，交叉驗證 R²≈0.56、MAE≈0.33T（vs 合成 ~0）。
+與 Tc 相同，唯有「以真實資料訓練」才有預測力——本模組以 MP 的 266 個本元素空間 FM
+化合物（FM-only，採用配置）訓練 GBR，5-fold 交叉驗證 R²≈0.575、MAE≈0.27T（vs 合成 ~0）。
+權威數字見 docs/BR_CALIBRATION.md；（窄 FM 62 系統/97 化合物的 0.563/0.33T 為未採用配置）。
 
 工作溫度 Br = predict_Br0K(comp) × m(T/Tc)（用 magnetization_correction 的平均場，
 配真實 Tc 模型）。資料由 build_mp_magnetization_dataset.py 抓取（git-ignored）。
@@ -40,8 +41,15 @@ def parse_formula(formula: str) -> np.ndarray | None:
     return v / s if s > 0 else None
 
 
-def load_dataset(path: str | Path = "external/mp_fm_dataset.json") -> tuple[np.ndarray, np.ndarray]:
-    """載入 MP FM 資料集 → (compositions (N,14), Br_0K (N,) in Tesla)。"""
+def load_dataset(
+    path: str | Path = "external/mp_fm_dataset.json", dedup: bool = True
+) -> tuple[np.ndarray, np.ndarray]:
+    """載入 MP FM 資料集 → (compositions (N,14), Br_0K (N,) in Tesla)。
+
+    dedup=True（預設）依成分去重：同一原子分率可由不同化學式/倍比產生（如 Fe5Co3
+    與 Fe10Co6），若不去重，重複成分會跨 KFold 的 train/test 折造成標籤洩漏，使 CV
+    R² 虛高（F-SCI-04）。重複者取 Br 平均（同一材料的多筆量測）。
+    """
     data = json.loads(Path(path).read_text())
     comps, br = [], []
     for formula, mag, _eah in data:
@@ -49,7 +57,21 @@ def load_dataset(path: str | Path = "external/mp_fm_dataset.json") -> tuple[np.n
         if c is not None:
             comps.append(c)
             br.append(MU_B_VOL_TO_TESLA * mag)
-    return np.array(comps), np.array(br)
+    comps = np.array(comps)
+    br = np.array(br)
+
+    if dedup and len(comps):
+        keys = np.round(comps, 4)
+        uniq, inv = np.unique(keys, axis=0, return_inverse=True)
+        if len(uniq) < len(comps):
+            inv = inv.ravel()
+            br_sum = np.zeros(len(uniq), dtype=np.float64)
+            cnt = np.zeros(len(uniq), dtype=np.float64)
+            np.add.at(br_sum, inv, br)
+            np.add.at(cnt, inv, 1.0)
+            comps = uniq.astype(comps.dtype)
+            br = (br_sum / cnt).astype(br.dtype)
+    return comps, br
 
 
 class RealBrModel:
@@ -82,6 +104,9 @@ class RealBrModel:
             {"model": self.model, "cv_r2": self.cv_r2, "cv_mae": self.cv_mae}))
 
     @classmethod
-    def load(cls, path: str | Path) -> "RealBrModel":
-        d = pickle.loads(Path(path).read_bytes())
+    def load(cls, path: str | Path, expected_sha256: str | None = None) -> "RealBrModel":
+        # 限制式 Unpickler：只允許 numpy/sklearn/scipy，阻擋 os/subprocess/eval 等
+        # RCE 載具（裸 pickle.loads 載入他人 .pkl 等同任意程式碼執行，F-SCI-06）。
+        from alloy_engine.models._safe_load import restricted_pickle_load
+        d = restricted_pickle_load(path, expected_sha256=expected_sha256)
         return cls(d["model"], d["cv_r2"], d["cv_mae"])

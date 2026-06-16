@@ -1,0 +1,15 @@
+version: 2
+# F-CI-02：自動監看相依更新（含 GitHub Actions 與 pip），並開 PR 升級/釘版。
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"

@@ -4,7 +4,7 @@
 科學依據：
   - M(T) = Ms × (1 - T/Tc)^0.5  (平均場 Heisenberg, β=0.5)
   - delta_M = M(T_target-30K) - M(T_target+30K) 為熱磁循環淨磁化變化
-  - Tc 工程最佳區 = T_target + 5 到 +50 K（略高於工作溫度）
+  - Tc 工程最佳區 = 略高於工作溫度（tc_window_score 以 T_target+25K 為中心、sigma 20K 的對稱 Gaussian 獎勵）
   - κ 線性混合：對合金通常低估 30-50%（Nordheim 電子散射），但相對排序可用
 
 v5.0 新增：
@@ -222,7 +222,9 @@ def magnetic_thermodynamic_score(
           M_at_low       : 循環低溫端磁化量
           M_at_high      : 循環高溫端磁化量
           delta_M        : M_at_low - M_at_high（熱磁循環能量代理）
-          tc_window_score: Tc 落在工程最佳區 [T_target+5, T_target+50] 的 Gaussian 分數
+          tc_window_score: Tc 偏高的對稱 Gaussian 獎勵（中心 T_target+25K、sigma 20K；
+                           ±2σ≈[+(-15),+65]K。F-ENG-04：此為次要塑形項，主對準見 _fitness 的 tc_hit；
+                           中心/sigma 目前硬編，不隨 tc_tolerance/delta_T_window 縮放）
     """
     dev = Ms.device
     T_target_K = T_target_C + 273.15

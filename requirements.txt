@@ -1,7 +1,10 @@
-torch>=2.8
+# 開發/快速安裝用的版本下限。可重現、抗供應鏈竄改的安裝請改用 hash-pinned
+# lockfile：見 docs/DEPENDENCY_PINNING.md（pip-compile/uv 產生 + CI --require-hashes）。
+# 註：jupyter 為 notebook-only，已移出核心清單；需要 notebook 請：
+#     pip install -e ".[notebook]"     # 縮小預設安裝的攻擊面（F-DEP-04）
+torch>=2.8          # <2.6 預設 weights_only=False；保持 >=2.8 為衛生下限（F-DEP-01）
 numpy>=1.26
 pandas>=2.0
 scikit-learn>=1.4
 matplotlib>=3.8
-seaborn>=0.13
-jupyter
+seaborn>=0.13       # visualization.py 繪圖需要（run_search 圖表），故屬核心相依

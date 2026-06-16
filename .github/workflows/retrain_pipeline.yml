@@ -25,15 +25,19 @@ jobs:
   retrain:
     runs-on: ubuntu-latest
     env:
-      NEMAD_URL: "https://raw.githubusercontent.com/sumanitani/NEMAD-MagneticML/main/Dataset/FM_with_curie.csv"
+      # P1-a / F-NET-01, F-CI-01：釘為不可變 commit SHA，避免上游 main 被竄改/漂移後
+      # 無聲烘焙進已發布 checkpoint。設定：到 NEMAD repo 取目標 commit 的 40 字元 SHA 填此。
+      NEMAD_REF: "main"
       NEMAD_PATH: "external/NEMAD/Dataset/FM_with_curie.csv"
+      # 硬性完整性閘門：首次執行會印出實際 sha256 並失敗；把該值填入下行即啟用驗證。
+      EXPECTED_NEMAD_SHA256: ""
       N_SAMPLES: ${{ github.event.inputs.n_samples || '8000' }}
       EPOCHS: ${{ github.event.inputs.epochs || '300' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
           cache: pip
@@ -44,15 +48,29 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install numpy pandas scikit-learn matplotlib
 
-      - name: Download NEMAD dataset
+      - name: Download + verify NEMAD dataset (hard integrity gate)
         run: |
           mkdir -p "$(dirname "$NEMAD_PATH")"
+          NEMAD_URL="https://raw.githubusercontent.com/sumanitani/NEMAD-MagneticML/${NEMAD_REF}/Dataset/FM_with_curie.csv"
+          echo "Fetching $NEMAD_URL"
           curl -fsSL "$NEMAD_URL" -o "$NEMAD_PATH"
           python - <<'PY'
-          import os, pandas as pd
-          df = pd.read_csv(os.environ["NEMAD_PATH"])
-          assert "Mean_TC_K" in df.columns and len(df) > 10000
-          print("NEMAD rows:", len(df))
+          import os, sys, hashlib, pandas as pd
+          p = os.environ["NEMAD_PATH"]
+          digest = hashlib.sha256(open(p, "rb").read()).hexdigest()
+          expected = os.environ.get("EXPECTED_NEMAD_SHA256", "").strip()
+          print("NEMAD sha256:", digest)
+          if not expected:
+              print("::error::EXPECTED_NEMAD_SHA256 未設定。請把上面的 sha256 填入 workflow env，"
+                    "並把 NEMAD_REF 釘為不可變 commit SHA。", file=sys.stderr)
+              sys.exit(1)
+          if digest.lower() != expected.lower():
+              print(f"::error::NEMAD 完整性檢查失敗：expected {expected} got {digest}", file=sys.stderr)
+              sys.exit(1)
+          df = pd.read_csv(p)
+          assert "Mean_TC_K" in df.columns, f"missing Tc column; got {list(df.columns)[:8]}"
+          assert len(df) > 10000, f"unexpectedly few rows: {len(df)}"
+          print(f"NEMAD integrity OK: rows={len(df)} cols={len(df.columns)}")
           PY
 
       - name: Provide MP key (optional, from secret)
@@ -71,7 +89,7 @@ jobs:
 
       - name: Upload checkpoints + report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: retrained-pipeline
           path: |
