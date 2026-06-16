@@ -87,6 +87,10 @@ jobs:
       - name: Run full pipeline
         run: bash scripts/run_full_pipeline.sh
 
+      - name: Scrub MP key (F-CI-04)
+        if: always()
+        run: rm -f external/.mp_key
+
       - name: Upload checkpoints + report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
