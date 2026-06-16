@@ -12,7 +12,11 @@ import seaborn as sns
 
 from alloy_engine.data.elements import ELEMENTS
 
-for font_name in ['Microsoft JhengHei', 'Microsoft YaHei', 'PMingLiU', 'SimHei', 'Noto Sans CJK TC']:
+# 跨平台 CJK 字型候選（zh-Hant 優先 TC；含 macOS / Windows / Linux）。
+for font_name in ['PingFang TC', 'Heiti TC', 'STHeiti', 'Arial Unicode MS',
+                  'Hiragino Sans GB', 'PingFang SC',
+                  'Microsoft JhengHei', 'Microsoft YaHei', 'PMingLiU', 'SimHei',
+                  'Noto Sans CJK TC', 'Noto Sans CJK SC']:
     if any(font_name in f.name for f in fm.fontManager.ttflist):
         plt.rcParams['font.sans-serif'] = [font_name]
         break

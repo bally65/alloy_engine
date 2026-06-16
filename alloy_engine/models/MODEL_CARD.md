@@ -37,7 +37,7 @@ Each training sample activates 2–8 of the 12 candidate elements (10 transition
 | seed | 42 |
 | n_active distribution | 2: 24%, 3: 19%, 4: 19%, 5: 16%, 6: 10%, 7: 7%, 8: 5% |
 | mean n_active | 4.1 |
-| Split | 80 / 10 / 10 (train / val / test) |
+| Split | 85 / 15 (train / test；合成代理單一切分，無獨立 val) |
 
 **Tc formula (Slater-Pauling style):**
 base_Tc = weighted mean of element Tc (Fe=1043K, Ni=627K, Co=1400K) normalized by magnetic fraction. Suppressed by Cr, Mn, and dilution by non-magnetic elements. Permalloy peak bonus applied near Ni=50%.
