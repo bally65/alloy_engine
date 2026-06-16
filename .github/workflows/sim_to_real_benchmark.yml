@@ -18,13 +18,15 @@ jobs:
   benchmark:
     runs-on: ubuntu-latest
     env:
-      NEMAD_URL: "https://raw.githubusercontent.com/sumanitani/NEMAD-MagneticML/main/Dataset/FM_with_curie.csv"
+      # P1-a / F-NET-01, F-CI-01：釘為不可變 commit SHA（搭配下方 EXPECTED_NEMAD_SHA256 硬閘門）。
+      NEMAD_REF: "main"
       NEMAD_PATH: "external/NEMAD/Dataset/FM_with_curie.csv"
+      EXPECTED_NEMAD_SHA256: ""
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
           cache: pip
@@ -42,7 +44,7 @@ jobs:
       # 以「年-週」為 key 快取資料，避免每跑都重抓（NEMAD 資料更新慢）
       - name: Cache NEMAD dataset
         id: nemad-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: external/NEMAD/Dataset
           key: nemad-fm-curie-${{ steps.date.outputs.yw }}
@@ -51,19 +53,29 @@ jobs:
         if: steps.nemad-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$(dirname "$NEMAD_PATH")"
+          NEMAD_URL="https://raw.githubusercontent.com/sumanitani/NEMAD-MagneticML/${NEMAD_REF}/Dataset/FM_with_curie.csv"
+          echo "Fetching $NEMAD_URL"
           curl -fsSL "$NEMAD_URL" -o "$NEMAD_PATH"
 
-      - name: Verify dataset integrity
+      - name: Verify dataset integrity (hard SHA-256 gate)
         run: |
           python - <<'PY'
-          import os, pandas as pd
+          import os, sys, hashlib, pandas as pd
           p = os.environ["NEMAD_PATH"]
+          digest = hashlib.sha256(open(p, "rb").read()).hexdigest()
+          expected = os.environ.get("EXPECTED_NEMAD_SHA256", "").strip()
+          print("NEMAD sha256:", digest)
+          if not expected:
+              print("::error::EXPECTED_NEMAD_SHA256 未設定。請把上面的 sha256 填入 workflow env，"
+                    "並把 NEMAD_REF 釘為不可變 commit SHA。", file=sys.stderr)
+              sys.exit(1)
+          if digest.lower() != expected.lower():
+              print(f"::error::NEMAD 完整性檢查失敗：expected {expected} got {digest}", file=sys.stderr)
+              sys.exit(1)
           df = pd.read_csv(p)
           assert "Mean_TC_K" in df.columns, f"missing Tc column; got {list(df.columns)[:8]}"
           assert len(df) > 10000, f"unexpectedly few rows: {len(df)}"
-          print(f"NEMAD rows={len(df)}  cols={len(df.columns)}  SHA-ok")
-          import hashlib
-          print("sha256:", hashlib.sha256(open(p,'rb').read()).hexdigest())
+          print(f"NEMAD integrity OK: rows={len(df)} cols={len(df.columns)}")
           PY
 
       - name: Train quick synthetic surrogate (for sim-to-real baseline)
@@ -91,7 +103,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sim-to-real-results
           path: |

@@ -76,3 +76,55 @@ def test_fitness_nan_guard():
                              population_size=50, target_tc_celsius=300.0)
     fit, _ = ga.fitness(ga.population)
     assert torch.isfinite(fit).all()  # 無 NaN/Inf
+
+
+def test_run_returns_aligned_pop_fit_info():
+    """回歸（F-ENG-01）：run() 回傳的 pop 必須與 fit/info 同源。
+
+    對回傳 pop 重新預測性質，應與 info 完全一致。舊版 run() 回傳「演化後
+    族群（offspring）」卻搭配「演化前 fit/info」，在此會失敗——匯出的最佳
+    合金成分與其旁邊的 Tc/Br/fitness 屬於不同個體。
+    """
+    def comp_dependent_predict(c):
+        n = c.shape[0]
+        return {
+            "Tc":       300.0 + 1000.0 * c[:, 0],          # 依 Fe 分率
+            "Hc":       torch.full((n,), 50.0, device=DEVICE),
+            "Br":       0.5 + c[:, 1],                      # 依第二元素分率
+            "strength": torch.full((n,), 500.0, device=DEVICE),
+        }
+
+    ga = GPUGeneticAlgorithm(
+        predict_fn=comp_dependent_predict, device=DEVICE,
+        population_size=SMALL_N, target_tc_celsius=350.0, min_strength_mpa=400.0,
+    )
+    pop, fit, info = ga.run(n_gen=5, verbose=False)
+
+    re = comp_dependent_predict(pop)
+    assert torch.allclose(re["Tc"], info["tc"], atol=1e-4), \
+        "回傳 pop 的 Tc 與 info['tc'] 不一致 → pop/info 不同源 (F-ENG-01)"
+    assert torch.allclose(re["Br"], info["br"], atol=1e-4), \
+        "回傳 pop 的 Br 與 info['br'] 不一致 → pop/info 不同源 (F-ENG-01)"
+    # argmax 同源：fitness 最高者的成分重新預測 = info 中對應值
+    bi = int(fit.argmax())
+    assert abs(float(comp_dependent_predict(pop[bi:bi + 1])["Tc"][0])
+               - float(info["tc"][bi])) < 1e-4
+
+
+def test_sparse_projection_caps_active_elements():
+    """P1-d：預設啟用稀疏投影，族群非零元素數應 ≤ max_active_elements
+    （與 surrogate 訓練支撐一致）；停用則允許稠密 Dirichlet。"""
+    ga = GPUGeneticAlgorithm(
+        predict_fn=_dummy_predict, device=DEVICE, population_size=SMALL_N,
+        target_tc_celsius=350.0, max_active_elements=8,
+    )
+    assert int((ga.population > 0).sum(dim=1).max()) <= 8, "初始族群應已投影"
+    pop, _, _ = ga.run(n_gen=3, verbose=False)
+    assert int((pop > 0).sum(dim=1).max()) <= 8, "演化後族群仍應在支撐內"
+
+    ga_dense = GPUGeneticAlgorithm(
+        predict_fn=_dummy_predict, device=DEVICE, population_size=SMALL_N,
+        target_tc_celsius=350.0, sparse_projection=False,
+    )
+    assert int((ga_dense.population > 0).sum(dim=1).max()) > 8, \
+        "停用投影應允許稠密族群（>8 非零）"

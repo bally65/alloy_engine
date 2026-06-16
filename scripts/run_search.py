@@ -10,6 +10,7 @@
 """
 import argparse
 import logging
+import random
 import sys
 import time
 from pathlib import Path
@@ -80,15 +81,42 @@ def parse_args() -> argparse.Namespace:
                    help="真實 NEMAD Tc checkpoint 路徑（如 "
                         "models/checkpoints/surrogate_nemad_baseline.pt）；"
                         "啟用後 GA 用真實 Tc + 合成 Hc/Br/σy 搜尋")
+    p.add_argument("--seed",                       type=int, default=42,
+                   help="隨機種子（GA 初始化/選擇/交配/突變；預設 42，兌現可重現性宣稱）")
+    p.add_argument("--deterministic",              action="store_true",
+                   help="啟用 PyTorch 確定性演算法（GPU 完全可重現；可能較慢或對少數 op 報錯）")
+    p.add_argument("--max-active-elements",        type=int, default=8,
+                   help="GA 族群每列最多非零元素數（對齊 surrogate 稀疏訓練支撐 2–8；P1-d）")
+    p.add_argument("--no-sparse-projection",       action="store_true",
+                   help="停用稀疏投影，還原舊版稠密 Dirichlet 行為（結果含 OOD 外推，僅對照用）")
     return p.parse_args()
+
+
+def set_seed(seed: int) -> None:
+    """設定所有 RNG 種子，兌現文件對 seed 的可重現性宣稱（P1-b / F-SCI-02）。"""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
+    set_seed(args.seed)
+    if args.deterministic:
+        torch.use_deterministic_algorithms(True, warn_only=True)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
     device = torch.device(args.device) if args.device else DEFAULT_DEVICE
     logger.info("運算裝置: %s", device)
+    logger.info("隨機種子: %d%s", args.seed, "（確定性模式）" if args.deterministic else "")
+    logger.info("稀疏投影: %s",
+                "停用（稠密，含 OOD）" if args.no_sparse_projection
+                else f"啟用 (≤{args.max_active_elements} 元素)")
     logger.info("化學約束: %s", "停用" if args.no_chemistry_constraints else "啟用")
     logger.info("多樣性篩選: %s", f"啟用 (K={args.diversity_k})" if args.diversity_filter else "停用")
     logger.info("GA mode: %s", args.mode)
@@ -142,6 +170,8 @@ def main() -> None:
             min_delta_m_threshold=args.min_delta_m_threshold,
             w_device=args.w_device,
             device_matrix=args.device_matrix,
+            sparse_projection=not args.no_sparse_projection,
+            max_active_elements=args.max_active_elements,
             **cfg,
         )
         t0 = time.time()

@@ -67,9 +67,12 @@ class HybridBundle:
         synthetic_path: Path | str,
         tc_path: Path | str,
         device: torch.device,
+        tc_sha256: str | None = None,
     ) -> "HybridBundle":
+        from alloy_engine.models._safe_load import safe_torch_load
         synth = SurrogateBundle.load(synthetic_path, device=device)
-        payload = torch.load(tc_path, map_location=device, weights_only=False)
+        # 安全載入真實 Tc checkpoint（weights_only=True），不執行任意程式碼。
+        payload = safe_torch_load(tc_path, map_location=device, expected_sha256=tc_sha256)
         m = PropertyMLP(payload["in_dim"], payload["hidden"]).to(device)
         m.load_state_dict(payload["model_state"])
         return cls(synth, m, payload["scaler"], device)

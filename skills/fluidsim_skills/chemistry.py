@@ -338,6 +338,14 @@ def noyes_whitney_dissolution(
     - conc_factor: 濃度對數效應（Hill 型，以推薦濃度中值為基準）
     - temp_factor: Arrhenius 溫度修正（Ea ≈ 50 kJ/mol for emulsification）
     """
+    # F-PATH：輸入驗證（避免 log1p 定義域錯誤 / 非物理輸入）
+    if concentration_pct <= 0:
+        raise ValueError(f"concentration_pct 必須 > 0，得到 {concentration_pct}")
+    if contact_time_min < 0:
+        raise ValueError(f"contact_time_min 不可為負，得到 {contact_time_min}")
+    if temperature_C <= -273.15:
+        raise ValueError(f"temperature_C 必須高於絕對零度，得到 {temperature_C}")
+
     cont = CONTAMINATION_DB[contamination_key]
     cleaner = CLEANER_DB[cleaner_key]
 
@@ -387,6 +395,14 @@ def surface_forces(
     - 剪切應力（Couette 流假設）
     - 滑動力
     """
+    # F-PATH：輸入驗證（避免負濃度經 **0.5 變複數、零翅片間距除零）
+    if concentration_pct < 0:
+        raise ValueError(f"concentration_pct 不可為負，得到 {concentration_pct}")
+    if shear_velocity < 0:
+        raise ValueError(f"shear_velocity 不可為負，得到 {shear_velocity}")
+    if fin_spacing_mm <= 0:
+        raise ValueError(f"fin_spacing_mm 必須 > 0，得到 {fin_spacing_mm}")
+
     cleaner = CLEANER_DB[cleaner_key]
     gamma_water = 72.8  # mN/m @ 20°C
 

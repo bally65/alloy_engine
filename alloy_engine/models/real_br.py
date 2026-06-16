@@ -82,6 +82,9 @@ class RealBrModel:
             {"model": self.model, "cv_r2": self.cv_r2, "cv_mae": self.cv_mae}))
 
     @classmethod
-    def load(cls, path: str | Path) -> "RealBrModel":
-        d = pickle.loads(Path(path).read_bytes())
+    def load(cls, path: str | Path, expected_sha256: str | None = None) -> "RealBrModel":
+        # 限制式 Unpickler：只允許 numpy/sklearn/scipy，阻擋 os/subprocess/eval 等
+        # RCE 載具（裸 pickle.loads 載入他人 .pkl 等同任意程式碼執行，F-SCI-06）。
+        from alloy_engine.models._safe_load import restricted_pickle_load
+        d = restricted_pickle_load(path, expected_sha256=expected_sha256)
         return cls(d["model"], d["cv_r2"], d["cv_mae"])

@@ -125,6 +125,9 @@ class GPUGeneticAlgorithm:
         device_matrix:        Optional[str] = None,  # 複合基底 "Cu"/"Al"/"alpha-Fe"（None=裸相）
         # ── analysis flag ─────────────────────────────────────────────────
         min_delta_m_threshold: float = 0.20,       # delta_M 硬約束下限 (sweep 用)
+        # ── 分布對齊（P1-d：避免 OOD reward hacking, F-SCI-01）────────────────
+        sparse_projection:    bool  = True,        # 投影族群至 surrogate 訓練支撐（稀疏）
+        max_active_elements:  int   = 8,           # 與 synthetic.generate_sparse_composition 上限一致
     ) -> None:
         self.predict_fn       = predict_fn
         self.device           = device
@@ -164,17 +167,43 @@ class GPUGeneticAlgorithm:
             self.min_strength = min_strength_mpa
             self.weights      = (w_tc, w_hc, w_br, w_strength, w_hc_constraint)
 
+        self.sparse_projection   = sparse_projection
+        self.max_active_elements = max_active_elements
+
         self.population = self._init_population()
         self.history: dict[str, list[float]] = defaultdict(list)
 
     # ── 初始化 ────────────────────────────────────────────────────────────────
     def _init_population(self) -> torch.Tensor:
-        # 與合成資料共用同一 Dirichlet 先驗（按 ELEMENTS 對齊，含 P/Ge）
+        # 與合成資料共用同一 Dirichlet 先驗（按 ELEMENTS 對齊，含 P/Ge）。
+        # 在 CPU 取樣再搬到目標裝置：MPS（Apple Silicon 預設）未實作
+        # aten::_sample_dirichlet，否則初始化即崩潰。
         from alloy_engine.data.synthetic import alpha_vector
         alpha = torch.tensor(
-            alpha_vector(), dtype=torch.float32, device=self.device,
+            alpha_vector(), dtype=torch.float32,
         ).expand(self.N, -1)
-        return torch.distributions.Dirichlet(alpha).sample()
+        pop = torch.distributions.Dirichlet(alpha).sample().to(self.device)
+        return self._project_sparse(pop)
+
+    # ── 稀疏投影（分布對齊）────────────────────────────────────────────────────
+    def _project_sparse(self, pop: torch.Tensor) -> torch.Tensor:
+        """投影至最多 max_active_elements 個非零元素（其餘歸零後重正規化）。
+
+        修復 OOD reward hacking（F-SCI-01）：surrogate 只在稀疏 2–8 元素成分上訓練
+        （見 data/synthetic.generate_sparse_composition），但 GA 預設取樣稠密
+        Dirichlet（14 元素皆 >0），且交配/突變會再增加非零數，使最佳化在 surrogate
+        未見的稠密子空間「鑽分數」。本投影把族群拉回訓練支撐內。
+
+        已是 ≤k 非零的個體近乎不變（僅 1e-10 級重正規化）；停用設 sparse_projection=False。
+        """
+        k = self.max_active_elements
+        if not self.sparse_projection or k >= self.E:
+            return pop
+        topk_idx = pop.topk(k, dim=1).indices          # 每列保留最大的 k 個
+        mask = torch.zeros_like(pop)
+        mask.scatter_(1, topk_idx, 1.0)
+        out = pop * mask
+        return out / (out.sum(1, keepdim=True) + 1e-10)
 
     # ── 化學可合成性懲罰 ──────────────────────────────────────────────────────
     def _chemistry_penalty(self, pop: torch.Tensor) -> torch.Tensor:
@@ -477,17 +506,22 @@ class GPUGeneticAlgorithm:
         return out / (out.sum(1, keepdim=True) + 1e-10)
 
     # ── 單步進化 ──────────────────────────────────────────────────────────────
-    def step(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        fit, info = self.fitness(self.population)
+    def step(self) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
+        # F-ENG-01 修復：fit/info 描述「被評估的族群」evaluated；繁殖後 self.population
+        # 變成下一代 offspring。step()/run() 必須回傳 evaluated（而非 offspring），
+        # 否則下游把「演化後成分」配「演化前性質/fitness」，匯出的最佳合金錯位。
+        evaluated = self.population
+        fit, info = self.fitness(evaluated)
 
         n_elite  = int(self.N * self.elite_ratio)
         elite_idx = fit.argsort(descending=True)[:n_elite]
-        elites   = self.population[elite_idx].clone()
+        elites   = evaluated[elite_idx].clone()
 
         pa, pb   = self._tournament_select(fit)
-        offspring = self._crossover(self.population[pa], self.population[pb])
+        offspring = self._crossover(evaluated[pa], evaluated[pb])
         offspring = self._mutate(offspring)
         offspring[:n_elite] = elites
+        offspring = self._project_sparse(offspring)   # 維持族群在訓練支撐內（P1-d）
         self.population = offspring
 
         bi = fit.argmax()
@@ -505,14 +539,16 @@ class GPUGeneticAlgorithm:
             self.history["best_delta_S_M"].append(info["delta_S_M"][bi].item())
             self.history["best_cp"].append(info["cp"][bi].item())
             self.history["best_freq"].append(info["cycle_frequency"][bi].item())
-        return fit, info
+        return evaluated, fit, info
 
     # ── 主迴圈 ────────────────────────────────────────────────────────────────
     def run(
         self, n_gen: int = 150, verbose: bool = True
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
+        # 回傳「最後一次被評估的族群」與其同源的 fit/info（F-ENG-01）。
+        evaluated, fit, info = self.population, None, None
         for g in range(n_gen):
-            fit, info = self.step()
+            evaluated, fit, info = self.step()
             if verbose and (g + 1) % 10 == 0:
                 bi = fit.argmax()
                 logger.info(
@@ -523,4 +559,4 @@ class GPUGeneticAlgorithm:
                     info["br"][bi].item(),
                     info["strength"][bi].item(),
                 )
-        return self.population, fit, info
+        return evaluated, fit, info

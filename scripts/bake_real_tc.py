@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from alloy_engine.config import CHECKPOINT_DIR, DEFAULT_DEVICE
 from alloy_engine.data.elements import NUM_ELEMENTS
 from alloy_engine.models.surrogate import SurrogateBundle, PropertyMLP
+from alloy_engine.models._safe_load import safe_torch_load
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     datefmt="%H:%M:%S")
@@ -57,7 +58,7 @@ def main() -> None:
             sys.exit(1)
 
     bundle = SurrogateBundle.load(args.bundle, device=device)
-    payload = torch.load(args.tc, map_location=device, weights_only=False)
+    payload = safe_torch_load(args.tc, map_location=device)
     tc_model = PropertyMLP(payload["in_dim"], payload["hidden"]).to(device)
     tc_model.load_state_dict(payload["model_state"])
 
@@ -83,7 +84,7 @@ def main() -> None:
 
     # 一併烘焙真實 Br（D3），若 checkpoint 存在
     if args.br.exists():
-        bp = torch.load(args.br, map_location=device, weights_only=False)
+        bp = safe_torch_load(args.br, map_location=device)
         if bp["in_dim"] == bundle_in_dim:
             br_model = PropertyMLP(bp["in_dim"], bp["hidden"]).to(device)
             br_model.load_state_dict(bp["model_state"])

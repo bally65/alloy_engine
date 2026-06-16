@@ -18,6 +18,12 @@ def main():
     parser.add_argument('--temp', type=float, default=20.0, help='流體溫度 (°C)')
     args = parser.parse_args()
 
+    # F-PATH：輸入驗證（diameter=0 會導致面積為 0 → 除零）
+    if args.diameter <= 0:
+        parser.error("--diameter 必須 > 0 (m)")
+    if args.flowrate < 0:
+        parser.error("--flowrate 不可為負 (L/min)")
+
     props = water_properties(args.temp)
     area = 3.14159265 * (args.diameter / 2) ** 2
     velocity = (args.flowrate / 1000 / 60) / area

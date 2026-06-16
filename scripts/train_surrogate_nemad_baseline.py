@@ -87,20 +87,23 @@ def load_and_clean() -> pd.DataFrame:
 def train(X: np.ndarray, y: np.ndarray, device: torch.device,
           epochs: int = 500, batch_size: int = 32, hidden: int = 128,
           patience: int = 50) -> tuple:
-    x_mean = X.mean(0).astype(np.float32)
-    x_std  = (X.std(0) + 1e-6).astype(np.float32)
-    y_mean = float(y.mean())
-    y_std  = float(y.std() + 1e-6)
-
-    Xn = ((X - x_mean) / x_std).astype(np.float32)
-    yn = ((y - y_mean) / y_std).astype(np.float32)
-
-    X_tr, X_te, y_tr, y_te, idx_tr, idx_te = train_test_split(
-        Xn, yn, np.arange(len(X)), test_size=0.10, random_state=42
+    # F-SCI-05：先切分，再「僅用訓練集」擬合 scaler（避免 val/test 統計洩漏進正規化）。
+    X_tr_raw, X_te_raw, y_tr_raw, y_te_raw, idx_tr, idx_te = train_test_split(
+        X, y, np.arange(len(X)), test_size=0.10, random_state=42
     )
-    X_tr, X_va, y_tr, y_va = train_test_split(
-        X_tr, y_tr, test_size=1/9, random_state=42
+    X_tr_raw, X_va_raw, y_tr_raw, y_va_raw = train_test_split(
+        X_tr_raw, y_tr_raw, test_size=1/9, random_state=42
     )
+
+    x_mean = X_tr_raw.mean(0).astype(np.float32)
+    x_std  = (X_tr_raw.std(0) + 1e-6).astype(np.float32)
+    y_mean = float(y_tr_raw.mean())
+    y_std  = float(y_tr_raw.std() + 1e-6)
+
+    nx = lambda A: ((A - x_mean) / x_std).astype(np.float32)
+    ny = lambda b: ((b - y_mean) / y_std).astype(np.float32)
+    X_tr, X_va, X_te = nx(X_tr_raw), nx(X_va_raw), nx(X_te_raw)
+    y_tr, y_va, y_te = ny(y_tr_raw), ny(y_va_raw), ny(y_te_raw)
     logger.info("Split: train=%d  val=%d  test=%d", len(X_tr), len(X_va), len(X_te))
 
     to_t = lambda a: torch.from_numpy(a).to(device)
