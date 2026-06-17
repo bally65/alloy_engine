@@ -1,0 +1,14 @@
+{
+ "B_gap_T": 0.0778,
+ "B_ideal_T": 0.7111,
+ "leakage": 0.109,
+ "n_nodes": 15933,
+ "n_elements": 31360,
+ "nonlinear": true,
+ "axisymmetric": true,
+ "n_iter": 2,
+ "converged": true,
+ "br": 0.96,
+ "gap_mm": 4.0,
+ "magnet_len_mm": 12.0
+}
