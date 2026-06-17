@@ -24,6 +24,8 @@ dependencies = [
 # 文件/簡報產生（非核心）
 docs = ["python-pptx>=1.0", "python-docx>=1.0"]
 notebook = ["jupyter"]   # seaborn 已升為核心相依（visualization.py 需要）
+# 整機設計/CAD/FEM 工具鏈（scripts/design_*、cad_*、fem_magnetics）
+design = ["cadquery>=2.7", "scikit-fem>=10"]
 
 [tool.setuptools.packages.find]
 include = ["alloy_engine*"]

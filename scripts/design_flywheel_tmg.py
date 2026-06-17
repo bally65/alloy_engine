@@ -49,6 +49,7 @@ def main() -> None:
     p.add_argument("--magnet", type=str, default=None,
                    choices=["NdFeB-N42SH", "NdFeB-N38EH", "SmCo-2:17"], help="磁體（預設依溫度自選）")
     p.add_argument("--magnet-temp-cap", type=float, default=300.0, help="熱隔離使磁體溫度上限 °C")
+    p.add_argument("--leakage", type=float, default=1.0, help="FEM 漏磁因子（fem_magnetics.py 量；1.0=優化, ~0.48=未優化C型）")
     p.add_argument("--utilization", type=float, default=0.40)
     p.add_argument("--regeneration", type=float, default=0.90)
     p.add_argument("--kappa", type=float, default=None, help="覆寫熱導率 W/mK（預設用校準值）")
@@ -106,7 +107,7 @@ def main() -> None:
     field_fraction = args.n_field_zones * args.field_span_deg / 360.0
     A_gap = field_fraction * A_ann
     T_magnet = min(t_cold, args.magnet_temp_cap)
-    mc = size_magnet(args.b_gap, args.gap_mm * 1e-3, A_gap, T_magnet, grade_key=args.magnet)
+    mc = size_magnet(args.b_gap, args.gap_mm * 1e-3, A_gap, T_magnet, grade_key=args.magnet, leakage=args.leakage)
     m_magnet = mc.get("magnet_mass_kg", float("nan"))
 
     # 質量 / 慣量

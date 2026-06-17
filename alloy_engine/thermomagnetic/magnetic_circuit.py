@@ -58,8 +58,13 @@ def size_magnet(
     T_magnet_C: float,
     grade_key: str | None = None,
     sigma_leak: float = 1.25,
+    leakage: float = 1.0,
 ) -> dict:
-    """為目標氣隙場尺寸磁體（最大能量積工作點）。回傳體積/質量/聚磁倍率/工作點/可行性。"""
+    """為目標氣隙場尺寸磁體（最大能量積工作點）。回傳體積/質量/聚磁倍率/工作點/可行性。
+
+    leakage：2D FEM 量得的漏磁/邊緣耦合因子（fem_magnetics.py，1.0=無漏；未優化 C 型 ~0.48，
+    Halbach/優化聚磁 ~0.85–0.95）。<1 表示磁極面需更高場補償 → 磁體體積 ∝ 1/leakage²。
+    """
     gk = grade_key or pick_grade(T_magnet_C)
     g = GRADES[gk]
     Br_T = br_at(g, T_magnet_C)
@@ -70,9 +75,10 @@ def size_magnet(
     C = 2.0 * B_gap_T / Br_T                                   # 聚磁倍率（磁極面積/氣隙面積）
     regime = "simple_gap" if B_gap_T <= B_cap_simple else "flux_concentration/Halbach"
 
+    Beff = B_gap_T / max(leakage, 1e-3)                        # 補償漏磁：磁極面需更高有效場
     V_gap = A_gap_m2 * gap_total_m
-    V_magnet = 4.0 * g.mu_rec * (B_gap_T / Br_T) ** 2 * V_gap  # 最大能量積尺寸
-    l_m = 2.0 * g.mu_rec * (B_gap_T / Br_T) * gap_total_m       # 磁體軸向長（迴路合計）
+    V_magnet = 4.0 * g.mu_rec * (Beff / Br_T) ** 2 * V_gap     # 最大能量積尺寸（含漏磁補償）
+    l_m = 2.0 * g.mu_rec * (Beff / Br_T) * gap_total_m         # 磁體軸向長（迴路合計）
     A_m = max(A_gap_m2, C * A_gap_m2)
     mass = V_magnet * g.rho
     cost = mass * g.price_usd_kg
@@ -85,7 +91,7 @@ def size_magnet(
         "feasible": True, "grade": g.name, "grade_key": gk,
         "Br_25_T": g.Br25, "Br_at_T": round(Br_T, 3), "regime": regime,
         "B_cap_simple_T": round(B_cap_simple, 3), "concentration_C": round(C, 2),
-        "ro_over_ri": (round(ro_ri, 2) if ro_ri else None),
+        "leakage": leakage, "ro_over_ri": (round(ro_ri, 2) if ro_ri else None),
         "magnet_length_mm": round(l_m * 1e3, 1), "magnet_area_cm2": round(A_m * 1e4, 1),
         "magnet_volume_cm3": round(V_magnet * 1e6, 1),
         "magnet_mass_kg": round(mass, 2), "magnet_cost_usd": round(cost, 0),
