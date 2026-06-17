@@ -1,0 +1,49 @@
+{
+ "dims": {
+  "meta": {
+   "target_tc_C": 350.0,
+   "formula": "Fe31Co23Ni17Al14",
+   "magnet": "SmCo-2:17"
+  },
+  "wheel_OD_mm": 320.0,
+  "hub_OD_mm": 120.0,
+  "shaft_bore_mm": 30.0,
+  "stack_height_mm": 50.0,
+  "plate_thickness_mm": 0.5,
+  "n_segments": 24,
+  "n_plates_total": 1200,
+  "fill": 0.5,
+  "gap_mm": 2.0,
+  "field_span_deg": 60.0,
+  "n_field_zones": 2,
+  "magnet_ro_over_ri": 3.136,
+  "magnet_radial_mm": 100.0,
+  "shaft_len_mm": 170.0,
+  "flywheel_OD_mm": 110.0,
+  "flywheel_thickness_mm": 40.0
+ },
+ "perf": {
+  "material": {
+   "rho": 7504.8,
+   "cp": 477.5,
+   "kappa": 113.47
+  },
+  "delta_M_T": 0.365,
+  "B_gap_T": 1.2,
+  "f_Hz": 27.94,
+  "rpm": 838.2,
+  "eta_material_pct": 0.311,
+  "eta_carnot_pct": 9.19,
+  "eta_rel_carnot_pct": 3.4,
+  "power_density_W_m3": 3895412.3,
+  "P_total_W": 6730.8,
+  "V_rms": 45.28,
+  "V_material_cm3": 1727.9,
+  "m_material_kg": 12.97,
+  "m_magnet_kg": 2.22,
+  "m_total_kg": 26.14,
+  "P_per_kg_W": 257.53,
+  "I_rotor_kgm2": 0.3062,
+  "E_flywheel_J": 1179.4
+ }
+}
