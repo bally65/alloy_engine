@@ -1,12 +1,12 @@
-"""真正的 2D 有限元 (FEM) 磁靜學求解（取代解析磁路估算）。
+"""2D 有限元 (FEM) 磁靜學求解器（scikit-fem）— v2：非線性 B–H 鐵飽和 + 軸對稱選項。
 
-磁標位 φ 公式（無自由電流）：H=-∇φ，B=μ0(μr_eff·H + M_pm)，∇·B=0
-  → ∇·(μr_eff ∇φ) = ∇·M_pm    （弱式：∫μr_eff ∇φ·∇v = ∫ M_pm·∇v）
-以 scikit-fem 組裝剛度、線性求解，取氣隙平均 |B|，並算 2D 漏磁/邊緣因子
-（FEM 氣隙場 / 一維無漏理想）。輸出場圖 docs/fem_field.png + docs/fem_magnetics.json。
+磁標位 φ：H=-∇φ，B=μ0(μr·H + M_pm)，∇·B=0 → ∫ μr ∇φ·∇v (·r 若軸對稱) = ∫ M_pm·∇v。
+- 線性：iron μr 常數。
+- 非線性（--nonlinear）：iron μr=μr(|B|) 由飽和曲線，Picard 迭代（鬆弛）至 B_gap 收斂。
+- 軸對稱（--axisymmetric）：弱式加 r 權重，模擬圓形/罐形（pot-core）磁路。
 
-幾何（mm，平面）：鐵框迴路 + 左腿嵌永磁(+y) + 右腿氣隙（工作板）。
-用法：python scripts/fem_magnetics.py --br 0.96 --gap 4
+solve_field() 可被 fem_studies.py 重用（per-scenario / Halbach 幾何掃描）。
+輸出 docs/fem_field.png + docs/fem_magnetics.json。
 """
 from __future__ import annotations
 
@@ -20,117 +20,125 @@ from skfem import MeshTri, Basis, ElementTriP1, BilinearForm, LinearForm, asm, c
 from skfem.helpers import dot, grad
 
 MU_0 = 4.0e-7 * math.pi
-MU_IRON = 3000.0
-
-# 幾何 (m)
-OUT = dict(x0=4e-3, x1=66e-3, y0=6e-3, y1=44e-3)
-HOLE = dict(x0=16e-3, x1=54e-3, y0=16e-3, y1=34e-3)
+# 鐵 B–H 飽和模型：μr(B)=1+(μr0-1)/(1+(B/Bs)^p)
+MUR0, BSAT, PEXP = 5000.0, 1.6, 7.0
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--br", type=float, default=0.96, help="磁體剩磁(溫度後) T")
-    ap.add_argument("--gap", type=float, default=4.0, help="氣隙 mm")
-    ap.add_argument("--mu-rec", type=float, default=1.05)
-    ap.add_argument("--nx", type=int, default=141)
-    ap.add_argument("--ny", type=int, default=113)
-    args = ap.parse_args()
+def mur_iron_of_B(Bmag: np.ndarray) -> np.ndarray:
+    return 1.0 + (MUR0 - 1.0) / (1.0 + (np.maximum(Bmag, 0.0) / BSAT) ** PEXP)
 
-    gap_m = args.gap * 1e-3
-    gy0, gy1 = 25e-3 - gap_m / 2, 25e-3 + gap_m / 2          # 氣隙在右腿中段
-    GAP = dict(x0=54e-3, x1=66e-3, y0=gy0, y1=gy1)
-    PM = dict(x0=4e-3, x1=16e-3, y0=19e-3, y1=31e-3)         # 左腿永磁
-    M0 = args.br / MU_0                                       # 等效磁化 A/m (+y)
 
-    xs = np.linspace(0, 70e-3, args.nx)
-    ys = np.linspace(0, 50e-3, args.ny)
-    m = MeshTri.init_tensor(xs, ys)
+def solve_field(br: float, gap_mm: float = 4.0, magnet_len_mm: float = 12.0, *,
+                nonlinear: bool = False, axisymmetric: bool = False,
+                mu_rec: float = 1.05, nx: int = 141, ny: int = 113,
+                max_iter: int = 40, tol: float = 2e-3, relax: float = 0.35) -> dict:
+    gap_m = gap_mm * 1e-3
+    Lm = magnet_len_mm * 1e-3
+    OUT = dict(x0=4e-3, x1=66e-3, y0=6e-3, y1=44e-3)
+    HOLE = dict(x0=16e-3, x1=54e-3, y0=16e-3, y1=34e-3)
+    PM = dict(x0=4e-3, x1=16e-3, y0=25e-3 - Lm / 2, y1=25e-3 + Lm / 2)
+    GAP = dict(x0=54e-3, x1=66e-3, y0=25e-3 - gap_m / 2, y1=25e-3 + gap_m / 2)
+    M0 = br / MU_0
+
+    m = MeshTri.init_tensor(np.linspace(0, 70e-3, nx), np.linspace(0, 50e-3, ny))
     basis = Basis(m, ElementTriP1())
+    gc = basis.global_coordinates().value          # (2, nelems, nqp)
+    Xq, Yq = gc[0], gc[1]
+    rw = np.maximum(Xq, 1e-6) if axisymmetric else np.ones_like(Xq)
 
-    def inrect(X, Y, r):
-        return (X >= r["x0"]) & (X <= r["x1"]) & (Y >= r["y0"]) & (Y <= r["y1"])
-
-    def is_frame(X, Y):
-        return inrect(X, Y, OUT) & ~inrect(X, Y, HOLE)
-
-    def is_pm(X, Y):
-        return inrect(X, Y, PM)
-
-    def is_gap(X, Y):
-        return inrect(X, Y, GAP)
-
-    def is_iron(X, Y):
-        return is_frame(X, Y) & ~is_pm(X, Y) & ~is_gap(X, Y)
-
-    def mur(x):
-        X, Y = x[0], x[1]
-        return np.where(is_iron(X, Y), MU_IRON, args.mu_rec)
-
-    def Mfield(x):
-        X, Y = x[0], x[1]
-        My = np.where(is_pm(X, Y), M0, 0.0)
-        return np.stack([np.zeros_like(My), My])
+    def inr(r):
+        return (Xq >= r["x0"]) & (Xq <= r["x1"]) & (Yq >= r["y0"]) & (Yq <= r["y1"])
+    frame = inr(OUT) & ~inr(HOLE)
+    pm = inr(PM); gap = inr(GAP)
+    iron = frame & ~pm & ~gap
+    My = np.where(pm, M0, 0.0)
 
     @BilinearForm
     def a(u, v, w):
-        return mur(w.x) * dot(grad(u), grad(v))
+        return w["mur"] * dot(grad(u), grad(v)) * w["rw"]
 
     @LinearForm
     def Lf(v, w):
-        return dot(Mfield(w.x), grad(v))
+        return (w["My"] * grad(v)[1]) * w["rw"]
 
-    A = asm(a, basis)
-    b = asm(Lf, basis)
-    node = int(np.argmin(m.p[0] ** 2 + m.p[1] ** 2))         # 釘一角點 φ=0 去除零空間
-    phi = solve(*condense(A, b, D=np.array([node])))
+    node = int(np.argmin(m.p[0] ** 2 + m.p[1] ** 2))
+    Dnode = np.array([node])
+    mur_q = np.where(iron, MUR0, mu_rec)
+    b = asm(Lf, basis, My=My, rw=rw)
 
-    # 後處理：∇φ 於積分點 → |B|
-    gphi = basis.interpolate(phi).grad                       # (2, nelems, nqp)
-    gc = basis.global_coordinates().value                    # (2, nelems, nqp)
-    Xq, Yq = gc[0], gc[1]
-    mur_q = np.where(is_iron(Xq, Yq), MU_IRON, args.mu_rec)
-    Bmag = MU_0 * mur_q * np.sqrt(gphi[0] ** 2 + gphi[1] ** 2)
+    history = []
+    converged, used_iter = True, 1
+    iters = max_iter if nonlinear else 1
+    for it in range(iters):
+        A = asm(a, basis, mur=mur_q, rw=rw)
+        phi = solve(*condense(A, b, D=Dnode))
+        gphi = basis.interpolate(phi).grad
+        Hmag = np.sqrt(gphi[0] ** 2 + gphi[1] ** 2)
+        B_gap = float(np.average((MU_0 * Hmag)[gap]))
+        history.append(B_gap)
+        if not nonlinear:
+            used_iter = 1
+            break
+        B_iron = MU_0 * mur_q * Hmag                       # 以現 μr 估鐵中 B
+        mur_new = np.where(iron, mur_iron_of_B(B_iron), mu_rec)
+        mur_q = (1 - relax) * mur_q + relax * mur_new       # 鬆弛更新
+        used_iter = it + 1
+        if it > 0 and abs(history[-1] - history[-2]) < tol:
+            break
+    else:
+        converged = not nonlinear
 
-    gapmask = is_gap(Xq, Yq)
-    B_gap_fem = float(np.average(np.sqrt(gphi[0] ** 2 + gphi[1] ** 2)[gapmask]) * MU_0)  # 氣隙 μr=1
-
-    # 一維無漏理想（磁體+氣隙串聯, A_m=A_gap）：B = Br·L_pm/(L_pm+μrec·gap)
     L_pm = PM["y1"] - PM["y0"]
-    B_ideal = args.br * L_pm / (L_pm + args.mu_rec * gap_m)
-    leak = B_gap_fem / B_ideal if B_ideal else float("nan")
+    B_ideal = br * L_pm / (L_pm + mu_rec * gap_m)
+    leak = B_gap / B_ideal if B_ideal else float("nan")
+    return dict(B_gap_T=round(B_gap, 4), B_ideal_T=round(B_ideal, 4), leakage=round(leak, 3),
+                n_nodes=int(m.p.shape[1]), n_elements=int(m.t.shape[1]),
+                nonlinear=nonlinear, axisymmetric=axisymmetric, n_iter=used_iter,
+                converged=bool(converged), br=br, gap_mm=gap_mm, magnet_len_mm=magnet_len_mm,
+                _mesh=m, _basis=basis, _phi=phi,
+                _iron=iron, _pm=pm, _gap=gap, _mur=mur_q, _Hmag=Hmag,
+                _rects=dict(OUT=OUT, PM=PM, GAP=GAP))
 
-    # 場圖（每元素平均 |B|）
-    import matplotlib
-    matplotlib.use("Agg")
+
+def make_field_plot(res: dict, path: str) -> None:
+    import matplotlib; matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import matplotlib.tri as mtri
-    Belem = Bmag.mean(axis=1)
+    m = res["_mesh"]
+    Belem = (MU_0 * res["_mur"] * res["_Hmag"]).mean(axis=1)
     tri = mtri.Triangulation(m.p[0] * 1e3, m.p[1] * 1e3, m.t.T)
     fig, ax = plt.subplots(figsize=(8.2, 6))
     tpc = ax.tripcolor(tri, facecolors=np.clip(Belem, 0, np.percentile(Belem, 99)),
                        cmap="inferno", shading="flat")
-    for r, c in [(OUT, "w"), (PM, "cyan"), (GAP, "lime")]:
-        ax.add_patch(plt.Rectangle((r["x0"] * 1e3, r["y0"] * 1e3),
-                                   (r["x1"] - r["x0"]) * 1e3, (r["y1"] - r["y0"]) * 1e3,
-                                   fill=False, ec=c, lw=1.2, ls="--"))
-    ax.set_aspect("equal"); ax.set_xlabel("x (mm)"); ax.set_ylabel("y (mm)")
-    ax.set_title(f"2D FEM magnetostatics — |B| map\n"
-                 f"B_gap(FEM)={B_gap_fem:.3f} T  ·  ideal(1D,no-leak)={B_ideal:.3f} T  ·  leakage×{leak:.2f}")
-    plt.colorbar(tpc, label="|B| (T)")
-    plt.tight_layout(); plt.savefig("docs/fem_field.png", dpi=150, bbox_inches="tight")
+    for key, c in [("OUT", "w"), ("PM", "cyan"), ("GAP", "lime")]:
+        r = res["_rects"][key]
+        ax.add_patch(plt.Rectangle((r["x0"] * 1e3, r["y0"] * 1e3), (r["x1"] - r["x0"]) * 1e3,
+                                   (r["y1"] - r["y0"]) * 1e3, fill=False, ec=c, lw=1.2, ls="--"))
+    mode = ("非線性" if res["nonlinear"] else "線性") + ("·軸對稱" if res["axisymmetric"] else "·平面")
+    ax.set_aspect("equal"); ax.set_xlabel("x / r (mm)"); ax.set_ylabel("y / z (mm)")
+    ax.set_title(f"2D FEM |B| — {mode}  (iter={res['n_iter']})\n"
+                 f"B_gap={res['B_gap_T']:.3f}T · ideal={res['B_ideal_T']:.3f}T · leak×{res['leakage']:.2f}")
+    plt.colorbar(tpc, label="|B| (T)"); plt.tight_layout()
+    plt.savefig(path, dpi=150, bbox_inches="tight")
 
-    res = dict(solver="scikit-fem P1 magnetostatic scalar-potential",
-               n_nodes=int(m.p.shape[1]), n_elements=int(m.t.shape[1]),
-               Br_T=args.br, gap_mm=args.gap, mu_iron=MU_IRON,
-               B_gap_FEM_T=round(B_gap_fem, 4), B_ideal_1D_T=round(B_ideal, 4),
-               leakage_fringe_factor=round(leak, 3))
-    Path("docs/fem_magnetics.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
 
-    print(f"FEM solved: {res['n_nodes']} nodes, {res['n_elements']} elements")
-    print(f"  B_gap (FEM)        = {B_gap_fem:.3f} T")
-    print(f"  B_ideal (1D no-leak)= {B_ideal:.3f} T")
-    print(f"  leakage/fringe factor = {leak:.2f}  (FEM/ideal)")
-    print(f"  → 設計應對解析 B 乘此因子做漏磁derating。圖 docs/fem_field.png")
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--br", type=float, default=0.96)
+    ap.add_argument("--gap", type=float, default=4.0)
+    ap.add_argument("--magnet-len", type=float, default=12.0)
+    ap.add_argument("--nonlinear", action="store_true")
+    ap.add_argument("--axisymmetric", action="store_true")
+    args = ap.parse_args()
+    res = solve_field(args.br, args.gap, args.magnet_len,
+                      nonlinear=args.nonlinear, axisymmetric=args.axisymmetric)
+    make_field_plot(res, "docs/fem_field.png")
+    out = {k: v for k, v in res.items() if not k.startswith("_")}
+    Path("docs/fem_magnetics.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
+    print(f"FEM: {out['n_nodes']} nodes / {out['n_elements']} elems · "
+          f"{'nonlinear' if out['nonlinear'] else 'linear'}"
+          f"{'/axisym' if out['axisymmetric'] else ''} · iters={out['n_iter']}")
+    print(f"  B_gap={out['B_gap_T']}T  ideal={out['B_ideal_T']}T  leakage×{out['leakage']}")
 
 
 if __name__ == "__main__":
