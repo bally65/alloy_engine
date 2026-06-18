@@ -1,0 +1,282 @@
+{
+ "sections": [
+  {
+   "title": "1. 磁路設計 (Magnetic Circuit / Halbach Array)",
+   "body_md": "**主控方程 (master sizing equation):** 理想 Halbach 圓筒孔內場 `B = Br · ln(ro/ri)`,場可超過磁體剩磁 Br。範例:Br=1.4 T、ro/ri=1.6 → B=0.66 T;欲達 1 T 需 ro/ri=e^(1/1.3)≈2.16。場僅隨半徑比**對數**成長,但磁體質量 ~ro²,故 PM-only 系統存在 **B-gap ≈ 1.5–2 T 經濟上限**。\n\n**磁功 (magnetic work):** `E_M = dJ · (B_applied/μ0)`,其中 dJ = μ0·(M_cold − M_hot) 為極化變化量 (Tesla)。可用循環功 = M-H 平面包絡面積。**關鍵:功與 B 線性正比** — 將 B-gap 由 0.5→1.0 T 約使比功加倍。實務再乘以 utilization/fill factor。\n\n**目標 air-gap flux density:** 商用窗口 1–2 T。Ferrite Halbach 僅 ~0.37–0.48 T (太弱),需 NdFeB 才達 1–2 T。Field uniformity 為首要設計目標。\n\n**Flux concentrators:** 在孔內置入 soft-magnetic 極片 (FeCo/Vacoflux 飽和 ~2.35 T,或 Si-steel M270-35A) 製造交替高/低場區。實證:替換部分磁體可減 42% 磁體用量、同時高低場差 +45%,優化截面 ~0.04 m² 達 2 T。需保持低於飽和。\n\n**Air-gap 質量陷阱 (mass-vs-gap):** EPM 實驗 (1 T),N45 磁體質量由 4 mm gap 的 0.5 kg 升至 10 mm gap 的 2.3 kg (gap 放大 2.5× → 磁體 4.6×)。設計守則:**working gap 盡量小 (數 mm)**。\n\n**磁體溫度選型 (NdFeB grade ladder):** N≤80°C, SH≤150°C, EH≤200°C, TH≤230°C;>200°C 改用 SmCo。溫度係數:NdFeB α(Br)≈−0.12 %/°C → 25→150°C 可逆損失約 15% Br;SmCo (Sm2Co17) α(Br)≈−0.03 %/°C,同溫升僅損 ~4%,Tmax ~300–350°C,Curie ~750–825°C。\n\n**Demag 守則 (load line / Pc):** 工作點 B/H 須在最高工作溫度的 demag 曲線 knee 之上 (knee 隨溫升上移);低於 knee 即不可逆退磁。保持高 permeance coefficient (短而厚的磁體)。\n\n**拓樸差異:** ROTARY 空間分離 hot/cold,磁體可維持近恆溫 (易保持 NdFeB 冷卻);PISTON 同一位置溫度往復擺盪,磁體曝露更大熱衝擊 → 更傾向 SmCo 或熱隔離磁體。\n\n**Pitfalls:** Segmentation (建議 ≥8、最好 16 段) 與 finite-length 使實際場僅為 ln() 理想值的一部分,需 FEA 修正 (~10–30% de-rating);薄板 working material 自身 demagnetizing field (Nd) 與不對稱 M-H (Gd) 產生 stray-field 能障 → 偏好 La-Fe-Si / Mn-Fe-P-Si。"
+  },
+  {
+   "title": "2. 熱交換與循環速率 (Heat Exchange & Cycling Rate)",
+   "body_md": "**頻率擴散極限 (diffusion limit):** `f ~ α/Lc²`,α=λ/(ρ·cp) 為熱擴散率,Lc=特徵傳導長 (板半厚)。**板厚減半 → 頻率 ~4×**。功率密度 `PD = E_mag · f`,故熱交換 (而非磁學) 通常封頂 PD。\n\n**Lumped-capacitance + Biot:** `Bi = h·Lc/λ`,LCM 僅在 Bi≪1 (薄板/高 λ) 有效;設計目標 Bi≪1 使界面 HTC 主導。\n\n**HTC 不對稱 (關鍵):** 固體接觸 h ≈ 8400 W/m²K vs 空氣對流 h ≈ 150 W/m²K (~50–60× 差距)。Ni-Mn-Ga 薄膜 (10 μm) 接觸加熱 ~1 ms,對流冷卻需 ~8 ms → **冷卻是限速半循環**。\n\n**頻率分層 (frequency gap):** 薄膜 (5–127 μm) 可達 80–200 Hz (resonance matching);中大型 bulk 僅 0.5–2 Hz。此 2–3 個數量級差距為 scale-up 核心難題。LaFeSi(H) 自振 TMG:240 μW/cm³ @ dT≈35 K。\n\n**材料熱擴散率取捨:** LaFe11.8Si1.8H1 為 bulk 最佳組合;Mn1.25Fe0.7P0.5Si0.5 熱擴散率明顯較低 → 直接拉低 f 與 PD。陷阱:僅憑 entropy change 選 first-order 材料,低 α 會抵銷磁學優勢。\n\n**Magnetocaloric thermal switch (突破性):** 將 MCM 當作 gating 磁路的開關 (非線圈鐵芯),功率密度較先前提升 2–3 個數量級;測試 cold 283 K / hot 363 K (dT≈80 K),LaFeSiH/In 勝 Gd (1.2 mW vs 0.18 mW)。\n\n**拓樸對應:** PISTON 用 direct solid contact (h~8000+) 快速吸熱 + 回程對流冷卻;FLYWHEEL/bulk 用 heat-transfer fluid (water,高 h) 流經 porous/plate AMR bed,但加入 dead thermal mass 與泵損。Rotary water-jet 引擎實證 263 rpm (~4.4 Hz),dT=46.5°C。\n\n**Pitfalls:** (1) 冷卻限速 — 對稱化循環/主動冷卻為最高槓桿;(2) first-order 材料 brittle,thermal/magnetovolume strain 在數百萬次循環下裂化,板不能無限薄 (緩解:bond 至 CuZn/piezo 撓性基板、用 hydrogenated La-Fe-Si);(3) 跑太快使實際 dT 縮小,材料無法每循環完整跨越 Tc → 功率崩塌。"
+  },
+  {
+   "title": "3. 回熱器 (Regenerator / Heat Recuperation)",
+   "body_md": "**有效度定義 (effectiveness):** `e = Q_actual/Q_max`,`NTU = UA/C_min`,capacity ratio `C_r = C_min/C_max`。\n\n**逆流 ε-NTU,平衡關鍵特例 (C_r=1):** `e = NTU/(1+NTU)`。具體目標:NTU=5→e=0.83;NTU=10→e=0.91;NTU=20→e=0.95;NTU=100→e=0.99。**達 e≈0.9–0.95 需 NTU≈10–20**;packed bed 在振盪流因 dispersion 需 NTU>100 才過 0.95。\n\n**矩陣第二參數:** 回熱器尚需 matrix capacity ratio `C_r* = m_solid·c_solid·f/(ṁ·cp)`;修正 `e_reg = e_cf·[1 − 1/(9·C_r*^1.93)]` → matrix 熱質量須遠大於流體熱質量。\n\n**AMR utilization:** `Φ = ṁ·cp,f·P/(m_solid·cp,s)`。低 Φ(<0.3)→ 高 e、大溫跨、低功率;高 Φ → 高功率、差溫跨。最佳窗口 Φ≈0.2–1.0 且 NTU>10。\n\n**推向 Carnot:** e=100% 時再生循環 → η = 1 − Tc/Th (Ericsson=Carnot);可回收 exergy ~ (1−e),故 η 在高 e 區近似隨 (1−e) 線性劣化。TMG 非再生理論上限 = **55% of Carnot**;regenerative TMG (Kirol 零 pinch Gd) 可突破:η=8% (47% Carnot)@400 kA/m,η=12.8% (75% Carnot)@5.6 MA/m。\n\n**旗艦數字 (為何 rotary 達高 e):** 16-layer (LaFeMnSiH,Curie 268.4–305.4 K,~2.25–2.5 K 階梯) 平板 AMR,COP=5.5 = **84% of Carnot COP** @ 41 K 溫跨,f=0.1 Hz,U=0.15,B_max=1.5 T,板 L=200 mm/H=0.75 mm,porosity 1/3。Multilayer staging (每層 Curie 對應局部溫度) 是寬溫跨近可逆的關鍵。\n\n**Piston/reciprocating 罰則:** static TMG 中再生僅在 0.2 Hz 使熱效率加倍,>1 Hz 增益因 mixing loss 與軸向導熱而消失 (實測 25 nW vs 數值 68 mW)。**Dead/void volume** 為單往復元件最大殺手:每次換向 re-mix 冷熱 slug,塌陷溫度梯度。\n\n**幾何排序:** Parallel-plate COP 最佳 (難做薄);packed-bed spheres 溫跨/比表面積最高但壓降最大;micro-channel 居中。Shell-and-tube 型達 e≈0.92。\n\n**同步敏感度 (rotary 結構性規避):** field 與 flow 相位差 10% → 溫跨與冷卻量降 20–40%;rotary 將 field 與 flow 綁同一軸角,結構性消除此 de-sync 損失。\n\n**設計範圍錨點:** Φ=0.2–1.0;NTU=10–30;plates porosity ~1/3;particle/plate 尺寸 sub-mm (0.1 mm 板距 → 19.8 K no-load span);field 1→1.5 T 提升冷卻量 30–50% 但溫跨僅 20–30%。"
+  },
+  {
+   "title": "4. 電力取出與線圈 (Generator & Coil / Power Take-off)",
+   "body_md": "**Faraday 基礎:** 線圈 EMF `V = −N dΦ/dt = −N·A·dB/dt`;動磁體 `eps = N·B·l·v`。輸出 ∝ f·N·A·dB → **低頻是 power take-off 的核心罩門**。\n\n**Linear-alternator lumped model (PISTON):** 電機耦合係數 T = B·l;機械方程多出 electrical damping `c_elec = (Bl)²/(Re+Rload)` [N·s/m],此即實際抽功的力。\n\n**阻抗匹配 (max power transfer):** 最佳負載 `Rload_opt = Rcoil + (Bl)²/c_mech` — 匹配至 Rcoil **加上** reflected mechanical-damping resistance,而非單純 Rcoil。最佳負載**電阻與頻率無關**(可固定),最佳**電抗與頻率相關**(僅在 ~100 Hz 共振用串聯電容抵銷 jωL)。Re=100 Ω 例:任何 Rload>Re 都降低取出功率。\n\n**Flywheel smoothing (ROTARY):** 儲能 `E = ½·I·ω²`;速度漣波 δω/ω ~ δE/(I·ω²),大 I 與高 ω → 平滑 back-EMF。PM 機輸出 Vrms ∝ N·ω·Φ。\n\n**原型輸出數字:** 共振懸臂 (Ni-Mn-Ga,84 Hz) ~118 mW/cm³ @ dT=3 K → 高頻使 induction coil 可行 (mV 級可用)。Macroscopic bulk:0.33 Hz、0.2 W/kg @ dT=60 K → mV/μW 級,被 conditioning 損失主導。Rotary thermomagnetic motor:估計 88 W、~27 kW/m³、熱-機效率 ~2.1%,再驅動高效率 rotary PM generator。\n\n**Linear alternator 效率:** moving-magnet tubular 達 84% @ 35 Hz、91% @ 50 Hz;moving-magnet vs moving-coil 體積功率密度 +80~150%,故 Stirling 多用 moving-magnet (最低動質量,利共振)。Tubular/Halbach translator 集中 air-gap flux 提升 Bl。\n\n**Coil fill factor:** 鬆繞圓線 ~55%,良好圓線 73–80%,orthocyclic 90%,矩形線 85%。高 fill → 更多匝 (高 EMF) 且每匝 Rcoil 更低。目標 ≥0.7 圓 / 0.85 矩 / 0.9 orthocyclic。\n\n**Power conditioning (低頻低壓):** 二極體壓降 (Schottky ~0.3 V) 可能超過 EMF → 用 (1) active/synchronous rectifier + NVC;(2) Dickson charge pump (優於 Villard);(3) SSHI/NVC-PSSHI (+320%);(4) 後級 boost DC-DC。可做到 ~25 mV AC、<10 Hz 自啟動,150 mV cold-start,cold-start power 低至 ~4.42 μW。\n\n**拓樸推薦 (headline):** 振盪/高頻小行程 → moving-magnet **linear alternator**;準連續/極低基頻 → **rotary PM generator + flywheel** (把 sub-Hz 脈動「升頻」成可乾淨整流的連續 AC)。\n\n**Pitfalls:** 過多細線匝抬 Rcoil 與源阻抗;moving-magnet 有 thermal + impact 退磁風險 (NdFeB Curie ~310°C,高溫改 SmCo);rotary PM 輸出電壓隨軸速漂移 (V∝ω),DC bus 需 post-rectifier 調節 + 閉迴路平滑。"
+  },
+  {
+   "title": "5. 旋轉 vs 往復原型 (Rotary vs Reciprocating Prototypes)",
+   "body_md": "**ROTARY / Curie-wheel 旗艦:** Waske 'pretzel' 靜態感應 TMG (Nature Energy 2019),La-Fe-Co-Si 板,Tt≈300–308 K:輸出 ~0.2 V、1.24 mW (vs Gd ~0.18 mW)。3-circuit pretzel 拓樸使磁通 sign reversal,功率較單迴路高數個數量級、較 2-circuit ~4×,且 cheap ferrite 即足夠 (TMG 對磁體成本要求遠低於 refrigeration)。\n\n**Takahashi 旋轉碟 Curie-wheel (最佳古典機械輸出):** Nd-B-Fe 磁體 + Fe-Ni-Cr rotor,10 碟、400 mm OD、0.5 mm 厚、1 mm clearance;water jet 95°C/11°C (dT≈84 K) → 14.8 W @ 0.76 rev/s。發現:water 優於 air,disc 幾何 (低 eddy loss) 優於 solid cylinder。\n\n**其他 rotary:** Vuarnoz/Egolf (Gd discs) 至 88 W、~27 kW/m³、熱-機 2.1%;古典 Curie-wheel motor 多 <1% 熱-機效率。Swiss Blue Energy 商用 Curie-ring (Gd,dT_res≈50 K) kW 級;2008 可行性報告提出 1 kW / 2 T / 5 Hz / dT_res=95 K / 120°C hot reservoir 作為工業旋轉裝置目標點。\n\n**PISTON 基礎原型:** Ujihara (2007,seminal),Gd 於 CuBe spring 往復驅動 PZT:16.6 mV @ dT=25 C,僅 0.58 Hz (heat-transfer-limited,非 resonance-matched)。Saha/Priya TMEG:unimorph 2.6 V @ 1.56 Hz/dT=80 C;8 串聯 bimorph 陣列 17 V、158 μW @ 0.91 MΩ → 64× 功率增益。\n\n**KIT 共振自振 SOTA:** Ni-Mn-Ga 薄膜 (10 μm、2×2 mm、Tc=375 K),114 Hz 共振自振;接觸加熱 ~1 ms,冷卻 ~8 ms (受 0.33 W/mK 黏著層瓶頸);平均 3.1 μW = 80 mW/cm³ (active volume),LEM 與實驗誤差 <10%。Gd 薄膜版 (Tc~293 K):熱源低至 40°C 即自振,至 106 Hz,23 μW/cm²,per-cycle dT 僅 0.45–1.2 C (最低,提升 2nd-law 效率)。Joule 2020 厚度律:5→40 μm 使 per-footprint 功率 ×3.4,達 50 μW/cm² @ dT=3 C。\n\n**懸臂運動方程:** `F_net = m·ẍ + c·ẋ + k·x + F_mag − F_em − F_air`;effective mass `m = (33/140)·m_cant + m_coil + m_film`。共振刻意調 k 使機械共振平衡磁力與慣性;自振於 onset of ferromagnetic transition (磁化仍高 → 大保留力)。\n\n**疲勞 (意外有利):** 小尺度 Ni-Mn-Ga micropillar 在 10⁶ 次 superelastic 循環基本無退化;但 114 Hz × 10⁶ ≈ 僅 2.4 小時,故需遠超 10⁶ 的高循環穩健性。Non-contact gas-damped 方案可消除接觸磨損 (代價:增 gas-film 熱阻、較低 f/功率,0.4–0.65 mW/cm² @ dT=26–38 C)。\n\n**取捨總結:** PISTON 勝在頻率/單位體積功率密度 (~100× bulk);FLYWHEEL 勝在連續類-DC 輸出、可規模化、空間冷熱分離 (利連續逆流再生),且避開動態 rotary fluid seal。"
+  },
+  {
+   "title": "6. 系統整合與損失 (System Integration & Losses)",
+   "body_md": "**統一熱力學核心:** 各拓樸熱力學相同 — 每循環可用功 = M-H 等溫線包絡面積 `W = μ0·∮M dH`;材料效率 `η = μ0·ΔM·H/Q_in`,室溫最佳 TMM ~2% ≈ 60% Carnot (dT=10 K)。差異僅在機械/電力取出。設計槓桿:**最小化 Q_in (低 heat capacity/latent heat)**,與 refrigeration 目標相反。\n\n**串接效率瓶頸:** Rotary 熱-機 stage (~2%) 主導整體,rotary generator stage 本身高效率。Regeneration 是唯一能突破 55%-of-Carnot 非再生上限的最大槓桿 (`η_regen = η0/(1−x)`,x=Q_regen/(Qin+Qout))。\n\n**FLYWHEEL 系統損失清單:**\n- **Bearings & rotary seals (旋轉特有失效模式):** 旋轉 bed/disc carrier 須對靜止 housing 密封,同時冷熱流體跨大溫差流過。核心難題:限制旋轉 porous wheel 與靜止 manifold 間 cross-leakage (洩漏 = 直接寄生熱短路 + 潤滑/軸承損壞)。解法:rotary union (housing+shaft+bearings+face seal),借自 rotary AMR。\n- **Eddy-current loss:** solid 磁性 rotor 寄生加熱 → laminate soft-magnetic flux path (disc 幾何已證較優)。\n- **Dwell/rotation 取捨:** rotor 須在每熱區停留足夠久以完整跨 Tc;太快 → 不完整 ΔM,太慢 → 低功率;LCM 最佳約每區達目標溫階 63%。\n- **Voltage regulation:** PM 輸出 V∝ω 隨熱輸入漂移,flywheel 減輕但不消除,需閉迴路平滑。\n\n**PISTON 系統損失清單:**\n- **低頻電氣罩門:** sub-Hz (0.33 Hz) 僅 mV EMF,diode drop/converter cold-start 吞噬輸出 → 必須 active rectification 且把懸臂跑在 ~100 Hz 共振。\n- **冷卻限速 + 黏著層熱阻:** 1 ms 加熱 / 8 ms 冷卻;黏著層 (k=0.33 W/mK) 為瓶頸 → 最小化/替換黏著熱阻、強化冷側 HTC。\n- **自振維持為控制難題:** 共振/振幅/頻率隨源溫與環溫漂移 (源溫↑→振幅↑、共振 f↑),fixed-k 懸臂會偏離最佳 → 需容忍漂移或主動調諧。\n- **接觸疲勞:** 數百萬次接觸衝擊 → 高循環穩健性或 non-contact gas-damped 方案。\n- **Moving-magnet 退磁:** thermal + impact 退磁 → 熱隔離/冷卻或高 Hci (SmCo)。\n\n**共通材料風險:** First-order (La-Fe-Si, Mn-Fe-P-Si) thermal hysteresis 破壞可逆性 (每循環須 overshoot,浪費熱、封頂 f/η);緩解:hydrogenation/組成調至 second-order 邊界,或僅在 hysteresis 寬度 ≪ dT 處操作。Brittleness 限制最薄板厚。\n\n**整合準則:** (1) B-gap 取 1–2 T 並用 flux concentrator;(2) working gap 與板厚盡量小 (f~1/Lc²、mass~gap);(3) 磁體 grade 依最熱工作點選 (NdFeB SH/EH 至 200°C,SmCo 200–550°C);(4) 用 water 作 HTF 並最大化 regenerator 比表面積;(5) 拓樸-運動匹配電力取出;(6) 阻抗匹配與機械阻尼共同設計 (c_elec ≈ c_mech);(7) 所有 B-gap/uniformity 以 FEA 驗證,勿僅信 ln() 公式。"
+  }
+ ],
+ "spec_table": [
+  {
+   "param": "Air-gap flux density B-gap",
+   "flywheel": "1.0–1.5 T baseline (NdFeB segmented/Halbach); aggressive 1.9–2.0 T. Pretzel topology works with cheap ferrite.",
+   "piston": "~2 T peak local field (small NdFeB Halbach parallelepipeds 3×3×10 mm³ or Br=1.07 T heated magnet in contact).",
+   "basis": "Brief 1/5/6: 2-T rotating Halbach (koreascience JAKO201713842134983); EPJ AP 2019 ap180284 (piston ~2 T); Waske pretzel ferrite (Nature Energy 4:68-74)."
+  },
+  {
+   "param": "Regenerator effectiveness e",
+   "flywheel": "0.85–0.95 achievable; 16-layer plate AMR → 84% of Carnot COP @ 41 K span (e in 0.85–0.95 band via spatial counterflow staging).",
+   "piston": "Effectively low / rate-limited; temporal regeneration only doubles η at 0.2 Hz and gain vanishes >1 Hz (dead/void volume re-mixes slugs).",
+   "basis": "Brief 3: balanced e=NTU/(1+NTU) (Wikipedia NTU); 16-layer Sci. Rep. PMC5656658; static-TMG limit Appl. Energy S0306261922000666."
+  },
+  {
+   "param": "Active plate / foil thickness L",
+   "flywheel": "~0.5 mm commercial bulk plate/disc limit (La-Fe-Co-Si Calorivac C); 0.5 mm discs in Takahashi rotor.",
+   "piston": "5–40 μm thin film (Ni-Mn-Ga); Gd film to 127 μm. Thinner → higher f (f~α/L²) but brittle/fatigue limit.",
+   "basis": "Brief 2/5/6: f~α/Lc² (arXiv:2001.03375); Takahashi 0.5 mm disc (OSTI 1538781); Ni-Mn-Ga 10 μm (PMC7961915), 5→40 μm (Joule 2020)."
+  },
+  {
+   "param": "Cycle frequency f",
+   "flywheel": "~0.8–2 Hz (bulk disc/wheel, heat-transfer limited); rotary AMR precedent 0.5–4 Hz, up to 8–10 Hz with laminated iron. Target 5 Hz (2008 report).",
+   "piston": "0.5–3 Hz bulk reciprocating (Ujihara 0.58 Hz, Saha 1.56–3 Hz); 84–200 Hz resonant thin-film self-actuation (KIT 114 Hz, Gd 106 Hz).",
+   "basis": "Brief 2/4/5/6: bulk 0.5–2 Hz (arXiv:2301.08854); Zimm rotary AMR (S0140700706001526); Ujihara APL 91 093508; KIT 114 Hz (PMC7961915)."
+  },
+  {
+   "param": "Power-take-off type",
+   "flywheel": "Rotary PM generator on shaft + flywheel (E=½Iω²) to smooth lumpy per-segment torque into continuous higher-speed AC; clean rectification. Optimize slot/pole to cut cogging (~3–4% ripple).",
+   "piston": "Moving-magnet linear alternator (lowest moving mass for sharp resonance, eps=NBlv) OR PZT/PVDF piezo cantilever (high V, high-Z); KIT uses pick-up coil 400 turns/250 Ω.",
+   "basis": "Brief 4/5: topology-to-motion matching (LPI NETS2012, flywheel patents US20070120430A1); Saha PVDF 17 V; KIT coil Table A1 (PMC7961915)."
+  },
+  {
+   "param": "Realistic power density",
+   "flywheel": "~27 kW/m³ of TMM (Vuarnoz/Egolf, 88 W); pretzel static 1.24 mW (La-Fe-Co-Si); Takahashi 14.8 W mechanical. Continuous DC-like output, scalable to kW.",
+   "piston": "~80–120 mW/cm³ active-film volume (Ni-Mn-Ga 84/114 Hz); bulk linear ~240 μW/cm³ (+4.2 μW net) or 6.8 μW/cm³; 50 μW/cm² areal @ dT=3 C.",
+   "basis": "Brief 4/5/6: 27 kW/m³ & 88 W (ResearchGate 363142684 / S0306261924016878); 118 mW/cm³ & 240 μW/cm³ (arXiv:2301.08854); Joule 2020."
+  },
+  {
+   "param": "dT regime (reservoir span)",
+   "flywheel": "Large span, 20–95 K (Swiss Blue Energy dT_res≈50 K, min 20 K; Takahashi dT≈84 K via 95/11°C water; target 95 K, 120°C hot reservoir). Spatial hot/cold separation.",
+   "piston": "Works at very small per-cycle dT: bulk dT=25–80 C (Ujihara 25 C, Saha 80 C); resonant film per-cycle dT only 0.45–3 C (heat source 40–200°C). Temporal alternation.",
+   "basis": "Brief 2/5/6: Swiss Blue Energy / 2008 report & Takahashi (OSTI 1538781, arXiv:2301.08854); Ujihara/Saha; KIT Gd-film 0.45–1.2 C (AdFM 2301250)."
+  },
+  {
+   "param": "Magnet material (temperature)",
+   "flywheel": "Magnet near constant temp (spatial separation) → NdFeB SH (≤150°C) / EH (≤200°C) viable kept cool; ferrite sufficient for pretzel. α(Br) NdFeB −0.12 %/°C.",
+   "piston": "Magnet sees larger thermal swing near hot side → favor SmCo (Sm2Co17, Tmax 300–350°C, α(Br) −0.03 %/°C) or thermally isolate; >200°C mandates SmCo. NdFeB Curie ~310°C limits moving magnet.",
+   "basis": "Brief 1/4: NdFeB grade ladder & temp coeffs (e-Magnets UK; Stanford Magnets SmCo); rotary-keeps-magnet-cool vs piston-thermal-swing (EPJ AP / PMC8366665)."
+  },
+  {
+   "param": "Heat-transfer mode & HTC h",
+   "flywheel": "Heat-transfer fluid (water) through porous/plate AMR bed; high h, adds dead thermal mass + pumping loss. Water beats air (Takahashi).",
+   "piston": "Direct solid contact h≈8400 W/m²K (fast ~1 ms intake) + convective air cooling h≈150 W/m²K (slow ~8 ms reset; cooling-limited).",
+   "basis": "Brief 2/3/5: h_cond 8400 vs h_conv 150 W/m²K (PMC7961915); fluid AMR guidance (arXiv:2001.03375); Takahashi water>air (OSTI 1538781)."
+  },
+  {
+   "param": "Load impedance matching",
+   "flywheel": "Match 3-phase output to generator R + post-rectifier DC-DC regulation (V∝ω drifts with thermal input). Closed-loop power smoothing.",
+   "piston": "Rload_opt = Rcoil + (Bl)²/c_mech (frequency-independent R); add series cap to cancel jωL only at ~100 Hz resonance. Set c_elec=(Bl)²/(Re+Rload) ≈ c_mech.",
+   "basis": "Brief 4: c_elec & critical loading (Harne VTechWorks PDF); R_opt frequency-independent (Sensors PMC7926984); flywheel V∝ω (US20070120430A1)."
+  },
+  {
+   "param": "Dominant loss / failure mode",
+   "flywheel": "Rotary fluid seals/bearings across temperature gradient (cross-leakage = parasitic heat short + bearing damage); eddy-current loss in solid rotor → laminate.",
+   "piston": "Cooling-side bottleneck (adhesive k=0.33 W/mK barrier); low-frequency kills EMF (mV, diode drops); contact fatigue (114 Hz × 10⁶ ≈ 2.4 h); moving-magnet impact/thermal demag.",
+   "basis": "Brief 5/6: rotary union/seal leakage (Wikipedia Rotary union; rotary-AMR); adhesive bottleneck & 1 ms/8 ms (PMC7961915); fatigue (Acta Mater. S1359645424003409)."
+  }
+ ],
+ "citations": [
+  {
+   "title": "Design of nested Halbach cylinder arrays for magnetic refrigeration applications (ScienceDirect)",
+   "url": "https://www.sciencedirect.com/science/article/abs/pii/S0304885315303309"
+  },
+  {
+   "title": "Optimization and improvement of Halbach cylinder design (arXiv:1409.3859)",
+   "url": "https://arxiv.org/pdf/1409.3859"
+  },
+  {
+   "title": "The ideal dimensions of a Halbach cylinder of finite length (arXiv:1410.0496)",
+   "url": "https://arxiv.org/pdf/1410.0496"
+  },
+  {
+   "title": "Progress In Electromagnetics Research B, Vol. 58 (Halbach B = Br ln(ro/ri), segmentation)",
+   "url": "https://www.jpier.org/ac_api/download.php?id=14010704"
+  },
+  {
+   "title": "Design and Fabrication of 2-T Rotating Halbach Magnet for Magnetic Refrigerator (Journal of Magnetics)",
+   "url": "https://koreascience.kr/article/JAKO201713842134983.page"
+  },
+  {
+   "title": "Towards powerful magnetocaloric devices with static electro-permanent magnets (PMC10006538)",
+   "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10006538/"
+  },
+  {
+   "title": "Thermal energy harvesting system based on magnetocaloric materials (EPJ Applied Physics 2019)",
+   "url": "https://www.epjap.org/articles/epjap/full_html/2019/01/ap180284/ap180284.html"
+  },
+  {
+   "title": "Can gadolinium compete with La-Fe-Co-Si in a thermomagnetic generator? (PMC8366665 / STAM 2021)",
+   "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8366665/"
+  },
+  {
+   "title": "Efficient and affordable thermomagnetic materials for harvesting low grade waste heat (arXiv:2001.03375)",
+   "url": "https://arxiv.org/pdf/2001.03375"
+  },
+  {
+   "title": "Hard Ferromagnets as a New Perspective on Materials for Thermomagnetic Power Generation Cycles (arXiv:2301.08854)",
+   "url": "https://arxiv.org/abs/2301.08854"
+  },
+  {
+   "title": "A review on design and performance of thermomagnetic devices (Kishore & Priya, OSTI 1538781)",
+   "url": "https://www.osti.gov/servlets/purl/1538781"
+  },
+  {
+   "title": "Neodymium Temperature Ratings (e-Magnets UK)",
+   "url": "https://e-magnetsuk.com/introduction-to-neodymium-magnets/temperature-ratings/"
+  },
+  {
+   "title": "Temperature Effects on Neodymium Iron Boron, NdFeB magnets (Stanford Magnets)",
+   "url": "https://www.stanfordmagnets.com/ndfeb-magnets-temperature-ratings.html"
+  },
+  {
+   "title": "The Superior Temperature Stability of SmCo Magnets (Stanford Magnets)",
+   "url": "https://www.stanfordmagnets.com/the-superior-temperature-stability-of-smco-magnets.html"
+  },
+  {
+   "title": "Understanding Permanent Magnets, TN9802 (Arnold/Allegro) - load line, permeance, demag knee",
+   "url": "https://www.allegromicro.com/-/media/files/technical-documents/arnold/understanding-permanent-magnets.pdf"
+  },
+  {
+   "title": "NTU method (effectiveness-NTU formulas, balanced counterflow e=NTU/(1+NTU))",
+   "url": "https://en.wikipedia.org/wiki/NTU_method"
+  },
+  {
+   "title": "The influence of the magnetic field on the performance of an active magnetic regenerator (Bjork & Engelbrecht, arXiv:1410.6246)",
+   "url": "https://arxiv.org/pdf/1410.6246"
+  },
+  {
+   "title": "Entropy Generation Minimization Analysis of Active Magnetic Regenerators (SciELO Brazil)",
+   "url": "https://www.scielo.br/j/aabc/a/dh8PZ5FrRs7kBXW8C8nrSqL/?lang=en&format=html"
+  },
+  {
+   "title": "Numerical analysis of a magnetocaloric refrigerator with a 16-layer regenerator (Scientific Reports 2017, PMC5656658)",
+   "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5656658/"
+  },
+  {
+   "title": "Numerical and experimental investigations on a regenerative static thermomagnetic generator (Appl. Energy S0306261922000666)",
+   "url": "https://www.sciencedirect.com/science/article/abs/pii/S0306261922000666"
+  },
+  {
+   "title": "Performance assessment of different porous matrix geometries for active magnetic regenerators (Appl. Energy S0306261916316166)",
+   "url": "https://www.sciencedirect.com/science/article/abs/pii/S0306261916316166"
+  },
+  {
+   "title": "The effect of dead volumes on the performance of magnetic refrigerators (Int. J. Refrigeration)",
+   "url": "https://www.sciencedirect.com/science/article/pii/S0140700723000488"
+  },
+  {
+   "title": "Stirling engine regenerators: how to attain over 95% regenerator effectiveness (Appl. Energy S0306261919312310)",
+   "url": "https://www.sciencedirect.com/science/article/abs/pii/S0306261919312310"
+  },
+  {
+   "title": "Lumped Element Model for Thermomagnetic Generators Based on Magnetic SMA Films (Materials 2021, PMC7961915)",
+   "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7961915/"
+  },
+  {
+   "title": "High-performance thermomagnetic generator controlled by a magnetocaloric switch (Nature Communications 14:4811, 2023)",
+   "url": "https://www.nature.com/articles/s41467-023-40634-x"
+  },
+  {
+   "title": "A Gd-Film Thermomagnetic Generator in Resonant Self-Actuation Mode (Adv. Funct. Mater. 33, 2301250, 2023)",
+   "url": "https://advanced.onlinelibrary.wiley.com/doi/full/10.1002/adfm.202301250"
+  },
+  {
+   "title": "Upscaling of Thermomagnetic Generators Based on Heusler Alloy Films (Joule 4(12), 2718-2732, 2020)",
+   "url": "https://www.cell.com/joule/fulltext/S2542-4351(20)30508-0"
+  },
+  {
+   "title": "Thermal processes of miniature thermomagnetic generators in resonant self-actuation mode (iScience 2022)",
+   "url": "https://www.cell.com/iscience/fulltext/S2589-0042(22)00841-0"
+  },
+  {
+   "title": "From waste heat to electrical power: A new generation of thermomagnetic generators (ScienceDaily, KIT 2021)",
+   "url": "https://www.sciencedaily.com/releases/2021/02/210203123402.htm"
+  },
+  {
+   "title": "Self-oscillation and heat management in a LaFeSi based thermomagnetic generator (JMMM S0304885321007046)",
+   "url": "https://www.sciencedirect.com/science/article/abs/pii/S0304885321007046"
+  },
+  {
+   "title": "Energy harvesting near room temperature using a thermomagnetic generator with a pretzel-like magnetic flux topology (Waske et al., Nature Energy 4:68-74, 2019)",
+   "url": "https://www.nature.com/articles/s41560-018-0306-x"
+  },
+  {
+   "title": "Ujihara, Carman & Lee, Thermal energy harvesting device using ferromagnetic materials (Appl. Phys. Lett. 91, 093508, 2007)",
+   "url": "https://pubs.aip.org/aip/apl/article/91/9/093508/144595/Thermal-energy-harvesting-device-using"
+  },
+  {
+   "title": "Small-scale functional fatigue of a Ni-Mn-Ga Heusler alloy (Acta Materialia 2024)",
+   "url": "https://www.sciencedirect.com/science/article/pii/S1359645424003409"
+  },
+  {
+   "title": "Self Sustained Thermally Induced Gas-Damped Oscillations of Bimetal Cantilevers (Hassan et al., arXiv:1911.04823)",
+   "url": "https://arxiv.org/pdf/1911.04823"
+  },
+  {
+   "title": "Saha & Priya, Thermo-Magneto-Electric Generator (TMEG) arrays (VTechWorks)",
+   "url": "https://vtechworks.lib.vt.edu/server/api/core/bitstreams/4163e599-cfa1-49b4-969f-892c0964571f/content"
+  },
+  {
+   "title": "Theoretical investigations of energy harvesting efficiency ... piezoelectric and electromagnetic oscillators (Harne, VTechWorks PDF)",
+   "url": "https://vtechworks.lib.vt.edu/bitstream/10919/52643/1/2012_Harne.pdf"
+  },
+  {
+   "title": "Load Resistance Optimization of Bi-Stable Electromagnetic Energy Harvester (Sensors, PMC7926984)",
+   "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7926984/"
+  },
+  {
+   "title": "Linear Alternator Technologies Used for Free Piston Stirling Engines (LPI NETS 2012)",
+   "url": "https://www.lpi.usra.edu/meetings/nets2012/pdf/3047.pdf"
+  },
+  {
+   "title": "Design Optimization of a Rotary Thermomagnetic Motor for More Efficient Heat Energy Harvesting (ResearchGate 363142684)",
+   "url": "https://www.researchgate.net/publication/363142684_Design_Optimization_of_a_Rotary_Thermomagnetic_Motor_for_More_Efficient_Heat_Energy_Harvesting"
+  },
+  {
+   "title": "Design, optimization and operation of a high power thermomagnetic harvester (Applied Energy 2024, S0306261924016878)",
+   "url": "https://www.sciencedirect.com/science/article/pii/S0306261924016878"
+  },
+  {
+   "title": "Power converter for ultra low-frequency and low-voltage energy harvesters (Micro and Nano Systems Letters, Springer)",
+   "url": "https://mnsl-journal.springeropen.com/articles/10.1186/s40486-025-00229-1"
+  },
+  {
+   "title": "Design and performance of a permanent-magnet rotary refrigerator (Zimm/Astronautics, Int. J. Refrig. 2006, S0140700706001526)",
+   "url": "https://www.sciencedirect.com/science/article/abs/pii/S0140700706001526"
+  },
+  {
+   "title": "Experimental results for a novel rotary active magnetic regenerator (Engelbrecht et al./DTU, Int. J. Refrig. 2012, S014070071200117X)",
+   "url": "https://www.sciencedirect.com/science/article/abs/pii/S014070071200117X"
+  },
+  {
+   "title": "Rotary union (Wikipedia) - bearing/seal architecture for fluid transfer into a rotating member",
+   "url": "https://en.wikipedia.org/wiki/Rotary_union"
+  },
+  {
+   "title": "Flywheel electric generator (US20070120430A1, Google Patents)",
+   "url": "https://patents.google.com/patent/US20070120430A1/en"
+  },
+  {
+   "title": "Coil Winding Magnet Wire / fill-factor reference (MWS Wire)",
+   "url": "https://mwswire.com/coil-winding-magnet-wire/"
+  }
+ ]
+}
